@@ -1,4 +1,4 @@
 sphere-price-sync
 =================
 
-[![Dependency Status](https://david-dm.org/sphereio/sphere-price-sync.png?theme=shields.io)](https://david-dm.org/sphereio/sphere-price-sync) [![devDependency Status](https://david-dm.org/sphereio/sphere-price-sync/dev-status.png?theme=shields.io)](https://david-dm.org/sphereio/sphere-price-sync#info=devDependencies)
+[![Build Status](https://secure.travis-ci.org/sphereio/sphere-price-sync.png?branch=master)](http://travis-ci.org/sphereio/sphere-price-sync) [![Coverage Status](https://coveralls.io/repos/sphereio/sphere-price-sync/badge.png)](https://coveralls.io/r/sphereio/sphere-price-sync)[![Dependency Status](https://david-dm.org/sphereio/sphere-price-sync.png?theme=shields.io)](https://david-dm.org/sphereio/sphere-price-sync) [![devDependency Status](https://david-dm.org/sphereio/sphere-price-sync/dev-status.png?theme=shields.io)](https://david-dm.org/sphereio/sphere-price-sync#info=devDependencies)

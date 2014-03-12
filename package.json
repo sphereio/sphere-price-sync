@@ -1,0 +1,53 @@
+{
+  "name": "sphere-price-sync",
+  "description": "Sync your retailer inventory to your SPHERE.IO master project",
+  "version": "0.1.0",
+  "homepage": "https://github.com/sphereio/sphere-price-sync",
+  "private": true,
+  "author": {
+    "name": "Hajo Eichler",
+    "email": "hajo.eichler@commercetools.de"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sphereio/sphere-price-sync.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sphereio/sphere-price-sync/issues"
+  },
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/sphereio/sphere-price-sync/blob/master/LICENSE-MIT"
+    }
+  ],
+  "main": "main.js",
+  "engines": {
+    "node": ">= 0.8.0"
+  },
+  "scripts": {
+    "test": "grunt coverage"
+  },
+  "dependencies": {
+    "optimist": "0.6.0",
+    "q": "~1.0.0",
+    "sphere-node-client": "~0.3.4",
+    "sphere-node-sync": "~0.4.6",
+    "underscore": "~1.6.0"
+  },
+  "devDependencies": {
+    "coveralls": "~2.6.1",
+    "grunt": "~0.4.1",
+    "grunt-bump": "~0.0.11",
+    "grunt-coffeelint": "~0.0.7",
+    "grunt-contrib-clean": "~0.5.0",
+    "grunt-contrib-coffee": "~0.8.2",
+    "grunt-contrib-concat": "~0.3.0",
+    "grunt-contrib-watch": "~0.5.3",
+    "grunt-shell": "~0.6.2",
+    "istanbul": "~0.2.3",
+    "jasmine-node": "~1.13.0",
+    "sphere-coffeelint": "git://github.com/sphereio/sphere-coffeelint.git#master"
+  },
+  "keywords": []
+}

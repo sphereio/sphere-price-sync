@@ -78,12 +78,14 @@ class PriceSync extends CommonUpdater
 
     deferred.promise
 
-
   getPublishedProducts: (client) ->
     client.productProjections.fetch()
 
   getCustomerGroup: (client, name) ->
-    client.customerGroups.where("name=\"#{name}\"").fetch()
+    cgs = client.customerGroups
+    # TODO: Remove this fix when new version of sphere-node-client is released
+    cgs._currentEndpoint = '/customer-groups'
+    cgs.where("name=\"#{name}\"").fetch()
 
   getPublishedVariantByMasterSku: (client, variant) ->
     deferred = Q.defer()

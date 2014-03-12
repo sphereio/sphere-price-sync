@@ -49,8 +49,7 @@ describe '#run', ->
       Q.all(dels).then (v) ->
         done()
       .fail (err) ->
-        console.log err
-        done()
+        done(err)
 
   it 'do nothing', (done) ->
     @priceSync.run (msg) ->

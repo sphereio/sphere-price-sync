@@ -128,7 +128,6 @@ describe '#run', ->
                   console.log msg
                   done()
 
-                console.log msg
                 expect(msg.status).toBe true
                 expect(_.size msg.message).toBe 4
                 expect(msg.message['No mastersku attribute!']).toBe 1
@@ -136,14 +135,26 @@ describe '#run', ->
                 expect(msg.message['Price update postponed.']).toBe 1
                 expect(msg.message['There is no product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
 
-                @rest.GET "/products/#{masterProductId}", (error, response, body) ->
-                  console.log "P %j", body
+                @rest.GET "/products/#{masterProductId}", (error, response, body) =>
                   expect(response.statusCode).toBe 200
                   expect(_.size(body.masterData.current.masterVariant.prices) + _.size(body.masterData.current.variants[0].prices)).toBe 1
                   price = body.masterData.current.masterVariant.prices[0]
                   price or= body.masterData.current.variants[0].prices[0]
                   expect(price.value.currencyCode).toBe 'EUR'
-                  #expect(price.value.centAmount).toBe 1
                   expect(price.channel.typeId).toBe 'channel'
                   expect(price.channel.id).toBeDefined()
-                  done()
+                  @priceSync.run (msg) =>
+                    unless msg.status
+                      console.log msg
+                      done()
+
+                    expect(msg.message['No mastersku attribute!']).toBe 1
+                    expect(msg.message['Prices updated.']).toBe 2
+                    expect(msg.message['There is no product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
+
+                    @rest.GET "/products/#{masterProductId}", (error, response, body) =>
+                      expect(response.statusCode).toBe 200
+                      expect(_.size(body.masterData.current.masterVariant.prices) + _.size(body.masterData.current.variants[0].prices)).toBe 2
+                      expect(price.channel.id).toBeDefined()
+
+                      done()

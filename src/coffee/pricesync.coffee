@@ -70,8 +70,11 @@ class PriceSync extends CommonUpdater
 
       @masterClient.products.byId(variantData.productId).save(data).then ->
         deferred.resolve "Prices updated."
-      .fail (msg) ->
-        deferred.reject msg # This one is really bad
+      .fail (error) ->
+        if error.statusCode is 409
+          deferred.resolve "Price update postponed."
+        else
+          deferred.reject error # This one is really bad
 
     .fail (msg) ->
       deferred.resolve msg # This one is ok
@@ -102,7 +105,7 @@ class PriceSync extends CommonUpdater
       unless masterSku
         deferred.reject 'No mastersku set!'
       else
-        query = encodeURIComponent "masterVariant(sku = \"#{masterSku}\")" # or variants(sku = \"#{masterSku.toLowerCase()}\")"
+        query = encodeURIComponent "masterVariant(sku = \"#{masterSku}\") or variants(sku = \"#{masterSku.toLowerCase()}\")"
         client._rest.GET "/product-projections?where=#{query}", (error, response, body) ->
           if body.total isnt 1
             deferred.reject "There is no product in master for sku '#{masterSku}'."

@@ -79,7 +79,6 @@ describe '#run', ->
         inputHint: 'SingleLine'
       }]
     @rest.POST '/product-types', productType, (error, response, body) =>
-      #console.log body
       expect(response.statusCode).toBe 201
       product =
         productType:
@@ -91,6 +90,9 @@ describe '#run', ->
           en: "p-#{unique}"
         masterVariant:
           sku: "mastersku#{unique}"
+        variants: [
+          { sku: "mastersku2#{unique}", attributes: [ { name: 'mastersku', value: 'We add some content here in order to create the variant' } ] }
+        ]
       @rest.POST "/products", product, (error, response, body) =>
         masterProductId = body.id
         expect(response.statusCode).toBe 201
@@ -109,6 +111,9 @@ describe '#run', ->
           product.masterVariant.prices = [
             { value: { currencyCode: 'EUR', centAmount: 1 } }
           ]
+          product.variants = [
+            { sku: 'retailer1-#{unique}', prices: [ { value: { currencyCode: 'EUR', centAmount: 2 } } ], attributes: [ { name: 'mastersku', value: "mastersku2#{unique}" } ] }
+          ]
           @rest.POST "/products", product, (error, response, body) =>
             expect(response.statusCode).toBe 201
             data =
@@ -119,17 +124,26 @@ describe '#run', ->
             @rest.POST "/products/#{body.id}", data, (error, response, body) =>
               expect(response.statusCode).toBe 200
               @priceSync.run (msg) =>
-                done(msg) unless msg.status
+                unless msg.status
+                  console.log msg
+                  done()
+
+                console.log msg
                 expect(msg.status).toBe true
-                expect(_.size msg.message).toBe 2
+                expect(_.size msg.message).toBe 4
                 expect(msg.message['No mastersku attribute!']).toBe 1
                 expect(msg.message['Prices updated.']).toBe 1
+                expect(msg.message['Price update postponed.']).toBe 1
+                expect(msg.message['There is no product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
+
                 @rest.GET "/products/#{masterProductId}", (error, response, body) ->
+                  console.log "P %j", body
                   expect(response.statusCode).toBe 200
-                  expect(_.size body.masterData.current.masterVariant.prices).toBe 1
+                  expect(_.size(body.masterData.current.masterVariant.prices) + _.size(body.masterData.current.variants[0].prices)).toBe 1
                   price = body.masterData.current.masterVariant.prices[0]
+                  price or= body.masterData.current.variants[0].prices[0]
                   expect(price.value.currencyCode).toBe 'EUR'
-                  expect(price.value.centAmount).toBe 1
+                  #expect(price.value.centAmount).toBe 1
                   expect(price.channel.typeId).toBe 'channel'
                   expect(price.channel.id).toBeDefined()
                   done()

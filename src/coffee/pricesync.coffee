@@ -79,6 +79,9 @@ class PriceSync extends CommonUpdater
     deferred.promise
 
   getPublishedProducts: (client) ->
+#    date = new Date()
+#    date.setDate(date.getDate - 1)
+#    client.productProjections.where("modifiedAt > \"#{date.toISOString()}\"").fetch()
     client.productProjections.fetch()
 
   getCustomerGroup: (client, name) ->
@@ -124,7 +127,7 @@ class PriceSync extends CommonUpdater
       not _.has(price, 'customerGroup') or price.customerGroup.id is retailerCustomerGroup.id
 
     masterPricesWithRetailerChannel = _.select variantInMaster.prices, (price) ->
-      _.has(price, 'supplyChannel') and price.supplyChannel.id is retailerChannel.id
+      _.has(price, 'channel') and price.channel.id is retailerChannel.id
     
     masterPrices = _.select masterPricesWithRetailerChannel, (price) ->
       not _.has(price, 'customerGroup') or price.customerGroup.id is masterCustomerGroup.id
@@ -151,7 +154,7 @@ class PriceSync extends CommonUpdater
               staged: false
       else if retailerPrice
         # Add new price
-        retailerPrice.supplyChannel =
+        retailerPrice.channel =
           typeId: 'channel'
           id: channelId
         data =

@@ -92,6 +92,7 @@ describe '#run', ->
         masterVariant:
           sku: "mastersku#{unique}"
       @rest.POST "/products", product, (error, response, body) =>
+        masterProductId = body.id
         expect(response.statusCode).toBe 201
         data =
           actions: [
@@ -117,10 +118,18 @@ describe '#run', ->
               version: body.version
             @rest.POST "/products/#{body.id}", data, (error, response, body) =>
               expect(response.statusCode).toBe 200
-              @priceSync.run (msg) ->
+              @priceSync.run (msg) =>
                 done(msg) unless msg.status
                 expect(msg.status).toBe true
                 expect(_.size msg.message).toBe 2
                 expect(msg.message['No mastersku attribute!']).toBe 1
                 expect(msg.message['Prices updated.']).toBe 1
-                done()
+                @rest.GET "/products/#{masterProductId}", (error, response, body) ->
+                  expect(response.statusCode).toBe 200
+                  expect(_.size body.masterData.current.masterVariant.prices).toBe 1
+                  price = body.masterData.current.masterVariant.prices[0]
+                  expect(price.value.currencyCode).toBe 'EUR'
+                  expect(price.value.centAmount).toBe 1
+                  expect(price.channel.typeId).toBe 'channel'
+                  expect(price.channel.id).toBeDefined()
+                  done()

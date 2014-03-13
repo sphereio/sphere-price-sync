@@ -33,15 +33,15 @@ describe 'PriceSync', ->
       mVariant =
         prices: [
           {}
-          { supplyChannel: { id: 'retailerX' } }
-          { customerGroup: { id: 'unwanted' }, supplyChannel: { id: 'retailerX' } }
-          { customerGroup: { id: 'foo' }, supplyChannel: { id: 'retailerX' } }
+          { channel: { id: 'retailerX' } }
+          { customerGroup: { id: 'unwanted' }, channel: { id: 'retailerX' } }
+          { customerGroup: { id: 'foo' }, channel: { id: 'retailerX' } }
         ]
       data = @priceSync._filterPrices rVariant, mVariant, { id: 'wanted' }, { id: 'foo' }, { id: 'retailerX' }
       expect(_.size data.retailerPrices).toBe 2
       expect(_.size data.masterPrices).toBe 2
-      expect(data.masterPrices[0]).toEqual { supplyChannel: { id: 'retailerX' } }
-      expect(data.masterPrices[1]).toEqual { customerGroup: { id: 'foo' }, supplyChannel: { id: 'retailerX' } }
+      expect(data.masterPrices[0]).toEqual { channel: { id: 'retailerX' } }
+      expect(data.masterPrices[1]).toEqual { customerGroup: { id: 'foo' }, channel: { id: 'retailerX' } }
 
   describe '#_updatePrices', ->
     it 'should complain when no price at retailer', ->
@@ -62,7 +62,7 @@ describe 'PriceSync', ->
           value:
             currencyCode: 'EUR'
             centAmount: 9999
-          supplyChannel:
+          channel:
             typeId: 'channel'
             id: 'retailerA'
         staged: false
@@ -77,7 +77,7 @@ describe 'PriceSync', ->
         value:
           currencyCode: 'YEN'
           centAmount: 9999
-        supplyChannel:
+        channel:
           typeId: 'channel'
           id: 'foo'
       updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'foo', { sku: 'sku1' }
@@ -92,7 +92,7 @@ describe 'PriceSync', ->
         value:
           currencyCode: 'EUR'
           centAmount: 9999
-        supplyChannel:
+        channel:
           typeId: 'channel'
           id: 'retailerB'
       updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'retailerB', { id: 7, sku: 's7' }
@@ -104,7 +104,7 @@ describe 'PriceSync', ->
           value:
             currencyCode: 'EUR'
             centAmount: 10000
-          supplyChannel:
+          channel:
             typeId: 'channel'
             id: 'retailerB'
         staged: false

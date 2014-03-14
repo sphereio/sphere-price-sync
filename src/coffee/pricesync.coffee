@@ -83,12 +83,13 @@ class PriceSync extends CommonUpdater
 
     deferred.promise
 
-  getPublishedProducts: (client) ->
-    # TODO: get only modified products
-    # date = new Date()
-    # date.setDate(date.getDate - 1)
-    # client.productProjections.where("modifiedAt > \"#{date.toISOString()}\"").fetch()
-    client.productProjections.fetch()
+  getPublishedProducts: (client, offsetInDays) ->
+    #date = new Date()
+    #offsetInDays = 2 if offsetInDays is undefined
+    #date.setDate(date.getDate() - offsetInDays)
+    #d = "#{date.toISOString().substring(0,10)}T00:00:00.000Z"
+    #client.productProjections.where("lastModifiedAt > \"#{d}\"").perPage(0).fetch()
+    client.productProjections.perPage(0).fetch()
 
   getCustomerGroup: (client, name) ->
     client.customerGroups.where("name=\"#{name}\"").fetch()

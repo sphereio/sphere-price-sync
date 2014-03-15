@@ -31,8 +31,8 @@ class PriceSync extends CommonUpdater
     channelRoles = ['InventorySupply', 'OrderExport', 'OrderImport']
     Q.all([
       @inventoryUpdater.ensureChannelByKey(@masterClient._rest, @retailerProjectKey, channelRoles)
-      @getCustomerGroup(@masterClient, CUSTOMER_GROUP_SALE)
-      @getCustomerGroup(@retailerClient, CUSTOMER_GROUP_SALE)
+      @getCustomerGroup(@masterClient, @CUSTOMER_GROUP_SALE)
+      @getCustomerGroup(@retailerClient, @CUSTOMER_GROUP_SALE)
       @getPublishedProducts(@retailerClient)
     ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup, retailerProducts) =>
       @logger.debug "Retailer products: #{_.size retailerProducts.results}" if @logger
@@ -83,13 +83,26 @@ class PriceSync extends CommonUpdater
 
     deferred.promise
 
-  getPublishedProducts: (client, offsetInDays) ->
-    #date = new Date()
-    #offsetInDays = 2 if offsetInDays is undefined
-    #date.setDate(date.getDate() - offsetInDays)
-    #d = "#{date.toISOString().substring(0,10)}T00:00:00.000Z"
-    #client.productProjections.where("lastModifiedAt > \"#{d}\"").perPage(0).fetch()
-    client.productProjections.perPage(0).fetch()
+  getPublishedProducts: (client, offsetInDays = 2) ->
+    deferred = Q.defer()
+
+    date = new Date()
+    date.setDate(date.getDate() - offsetInDays)
+    offSet = "#{date.toISOString().substring(0,10)}T00:00:00.000Z"
+
+    pageProducts = (page = 0, perPage = 50, total, acc = []) ->
+      if total? and page * perPage > total
+        deferred.resolve acc
+      else
+        client.products.where("lastModifiedAt > \"#{offSet}\"").sort("createdAt").page(page).perPage(perPage).fetch()
+        .then (payload) ->
+          pageProducts page + 1, perPage, payload.total, acc.concat(payload.results)
+        .fail (error) ->
+          deferred.reject error
+        .done()
+
+    pageProducts()
+    deferred.promise
 
   getCustomerGroup: (client, name) ->
     client.customerGroups.where("name=\"#{name}\"").fetch()

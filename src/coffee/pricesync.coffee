@@ -6,6 +6,7 @@ Q = require 'q'
 
 class PriceSync extends CommonUpdater
 
+  CHANNEL_ROLES = ['InventorySupply', 'OrderExport', 'OrderImport']
   CUSTOMER_GROUP_SALE = 'specialPrice'
 
   constructor: (options = {}) ->
@@ -28,31 +29,33 @@ class PriceSync extends CommonUpdater
     @inventoryUpdater = new InventoryUpdater masterOpts
 
   run: (callback) ->
-    channelRoles = ['InventorySupply', 'OrderExport', 'OrderImport']
     Q.all([
-      @inventoryUpdater.ensureChannelByKey(@masterClient._rest, @retailerProjectKey, channelRoles)
-      @getCustomerGroup(@masterClient, @CUSTOMER_GROUP_SALE)
-      @getCustomerGroup(@retailerClient, @CUSTOMER_GROUP_SALE)
+      @inventoryUpdater.ensureChannelByKey(@masterClient._rest, @retailerProjectKey, CHANNEL_ROLES)
+      @getCustomerGroup(@masterClient, CUSTOMER_GROUP_SALE)
+      @getCustomerGroup(@retailerClient, CUSTOMER_GROUP_SALE)
       @getPublishedProducts(@retailerClient)
     ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup, retailerProducts) =>
       @logger.debug "Retailer products: #{_.size retailerProducts.results}" if @logger
 
-      if _.size(retailerProducts.results) is 0
+      if _.size(retailerProducts) is 0
         @returnResult true, "Nothing to do.", callback
       else
         updates = []
-        for retailerProduct in retailerProducts.results
-          retailerProduct.variant or= []
-          variants = [retailerProduct.masterVariant].concat retailerProduct.variants
-          for retailerVariant in variants
+        _.each retailerProducts, (retailerProduct) =>
+          current = retailerProduct.masterData.current
+          current.variant or= []
+          variants = [current.masterVariant].concat current.variants
+          _.each variants, (retailerVariant) =>
             updates.push @syncVariantPrices(retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
 
         Q.all(updates).then (msg) =>
           @returnResult true, msg, callback
         .fail (msg) =>
           @returnResult false, msg, callback
+        .done()
     .fail (msg) =>
       @returnResult false, msg, callback
+    .done()
 
   syncVariantPrices: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     deferred = Q.defer()
@@ -68,7 +71,8 @@ class PriceSync extends CommonUpdater
         variantId: variantInMaster.id
         actions: actions
 
-      @masterClient.products.byId(variantData.productId).save(data).then ->
+      @masterClient.products.byId(variantData.productId).save(data)
+      .then ->
         deferred.resolve "Prices updated."
       .fail (error) ->
         if error.statusCode is 409
@@ -76,10 +80,12 @@ class PriceSync extends CommonUpdater
           deferred.resolve "Price update postponed." # will be done at next interation
         else
           deferred.reject error # This one is really bad as the price couldn't update
+      .done()
 
     .fail (msg) ->
       # We will resolve here as the problems on getting the data from master should not influence the other updates
       deferred.resolve msg
+    .done()
 
     deferred.promise
 
@@ -105,7 +111,18 @@ class PriceSync extends CommonUpdater
     deferred.promise
 
   getCustomerGroup: (client, name) ->
+    deferred = Q.defer()
     client.customerGroups.where("name=\"#{name}\"").fetch()
+    .then (result) ->
+      if _.size(result.results) is 1
+        deferred.resolve result.results[0]
+      else
+        deferred.reject "Can not find cutomer group '#{name}'."
+    .fail (error) ->
+      deferred.reject error
+    .done()
+
+    deferred.promise
 
   getPublishedVariantByMasterSku: (client, variant) ->
     deferred = Q.defer()

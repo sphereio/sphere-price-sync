@@ -100,7 +100,7 @@ class PriceSync extends CommonUpdater
       if total? and page * perPage > total
         deferred.resolve acc
       else
-        client.products.where("lastModifiedAt > \"#{offSet}\"").sort("createdAt").page(page).perPage(perPage).fetch()
+        client.products.where("lastModifiedAt > \"#{offSet}\"").page(page).perPage(perPage).fetch()
         .then (payload) ->
           pageProducts page + 1, perPage, payload.total, acc.concat(payload.results)
         .fail (error) ->

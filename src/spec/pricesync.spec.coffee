@@ -109,3 +109,67 @@ describe 'PriceSync', ->
             id: 'retailerB'
         staged: false
       expect(updates[0]).toEqual expectedAction
+
+
+    it 'should add a special price', ->
+      retailerPrice =
+        value:
+          currencyCode: 'EUR'
+          centAmount: 9999
+        customerGroup:
+          typeId: 'customer-group'
+          id: 'cgR'
+      updates = @priceSync._updatePrices [retailerPrice], [], 'retailerA', { id: 3, sku: 's3' }, 'cgR', 'cgM'
+      expect(_.size updates).toBe 1
+      expectedAction =
+        action: 'addPrice'
+        variantId: 3
+        price:
+          value:
+            currencyCode: 'EUR'
+            centAmount: 9999
+          channel:
+            typeId: 'channel'
+            id: 'retailerA'
+          customerGroup:
+            typeId: 'customer-group'
+            id: 'cgM'
+        staged: false
+      expect(updates[0]).toEqual expectedAction
+
+    it 'should change a special price', ->
+      retailerPrice =
+        value:
+          currencyCode: 'EUR'
+          centAmount: 10000
+        customerGroup:
+          typeId: 'customer-group'
+          id: 'cgRetailer'
+      masterPrice =
+        value:
+          currencyCode: 'EUR'
+          centAmount: 9999
+        channel:
+          typeId: 'channel'
+          id: 'retailerB'
+        customerGroup:
+          typeId: 'customer-group'
+          id: 'cgMaster'
+
+      updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'retailerB', { id: 7, sku: 's7' }, 'cgRetailer', 'cgMaster'
+      expect(_.size updates).toBe 1
+      expectedAction =
+        action: 'changePrice'
+        variantId: 7
+        price:
+          value:
+            currencyCode: 'EUR'
+            centAmount: 10000
+          channel:
+            typeId: 'channel'
+            id: 'retailerB'
+          customerGroup:
+            typeId: 'customer-group'
+            id: 'cgMaster'
+        staged: false
+      expect(updates[0]).toEqual expectedAction

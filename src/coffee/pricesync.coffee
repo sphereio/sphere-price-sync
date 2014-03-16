@@ -64,7 +64,7 @@ class PriceSync extends CommonUpdater
       variantInMaster =  variantData.variant
 
       prices = @_filterPrices(retailerVariant, variantInMaster, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
-      actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantInMaster)
+      actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantInMaster, retailerCustomerGroup.id, masterCustomerGroup.id)
       
       data =
         version: variantData.productVersion
@@ -171,7 +171,7 @@ class PriceSync extends CommonUpdater
       masterPrices: masterPrices
 
 
-  _updatePrices: (retailerPrices, masterPrices, channelId, variantInMaster) ->
+  _updatePrices: (retailerPrices, masterPrices, channelId, variantInMaster, retailerCustomerGroupId, masterCustomerGroupId) ->
     actions = []
     syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') ->
       if masterPrice and retailerPrice
@@ -185,26 +185,37 @@ class PriceSync extends CommonUpdater
               action: 'changePrice'
               variantId: variantInMaster.id
               price: masterPrice
-              staged: false
       else if retailerPrice
         # Add new price
-        retailerPrice.channel =
+        price = _.clone retailerPrice
+        # add channel for retailer in master
+        price.channel =
           typeId: 'channel'
           id: channelId
+        # If the price has a customerGroup set, we have to update the id with the one from master
+        if _.has price, 'customerGroup'
+          price.customerGroup.id = masterCustomerGroupId
+
         data =
           action: 'addPrice'
           variantId: variantInMaster.id
-          price: retailerPrice
-          staged: false
+          price: price
       else if priceType is 'normal'
         console.error "SKU #{variantInMaster.sku}: There are NO #{priceType} prices at all."
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
-    actions.push action if action
+    if action
+      #actions.push action
+      liveAction = _.clone action
+      liveAction.staged = false
+      actions.push liveAction
 
-    # TODO: check customer group
-    action = syncAmountOrCreate(@_salesPrice(retailerPrices), @_salesPrice(masterPrices), CUSTOMER_GROUP_SALE)
-    actions.push action if action
+    action = syncAmountOrCreate(@_salesPrice(retailerPrices, retailerCustomerGroupId), @_salesPrice(masterPrices, masterCustomerGroupId), CUSTOMER_GROUP_SALE)
+    if action
+      #actions.push action
+      liveAction = _.clone action
+      liveAction.staged = false
+      actions.push liveAction
 
     actions
 
@@ -212,8 +223,8 @@ class PriceSync extends CommonUpdater
     _.find prices, (p) ->
       not _.has p, 'customerGroup'
 
-  _salesPrice: (prices) ->
+  _salesPrice: (prices, customerGroupId) ->
     _.find prices, (p) ->
-      _.has p, 'customerGroup'
+      _.has(p, 'customerGroup') and p.customerGroup.id is customerGroupId
       
 module.exports = PriceSync

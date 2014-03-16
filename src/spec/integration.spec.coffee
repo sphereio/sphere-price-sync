@@ -83,7 +83,7 @@ describe '#run', ->
           sku: "mastersku#{@unique}"
         variants: [
           { sku: "masterSKU2-#{@unique}", attributes: [ { name: 'mastersku', value: 'We add some content here in order to create the variant' } ] }
-          { sku: "MasterSku3_#{@unique}", prices: [
+          { sku: "MasterSku3/#{@unique}", prices: [
             { value: { currencyCode: 'EUR', centAmount: 99 }, channel: { typeId: 'channel', id: @channelId } }
             { value: { currencyCode: 'EUR', centAmount: 66 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' }, channel: { typeId: 'channel', id: @channelId } }
           ], attributes: [ { name: 'mastersku', value: 'We add some content here in order to create another variant' } ] }
@@ -132,7 +132,7 @@ describe '#run', ->
       ], attributes: [ { name: 'mastersku', value: "masterSKU2-#{@unique}" } ] }
       { sku: "retailer2-#{@unique}", prices: [
         { value: { currencyCode: 'EUR', centAmount: 99 } }
-      ], attributes: [ { name: 'mastersku', value: "MasterSku3_#{@unique}" } ] }
+      ], attributes: [ { name: 'mastersku', value: "MasterSku3/#{@unique}" } ] }
     ]
     @client.products.save(@product)
     .then (result) =>

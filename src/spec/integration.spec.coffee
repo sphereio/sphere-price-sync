@@ -50,6 +50,12 @@ describe '#run', ->
         delProducts product.id, product.version
       Q.all(deletions)
     .then =>
+      @priceSync.getCustomerGroup(@client, 'specialPrice')
+    .then (result) =>
+      @customerGroupId = result.id
+      @client.channels.where("key = \"#{Config.config.project_key}\"").fetch()
+    .then (result) =>
+      @channelId = result.results[0].id
       productType =
         name: "PT-#{@unique}"
         description: 'bla'
@@ -77,6 +83,10 @@ describe '#run', ->
           sku: "mastersku#{@unique}"
         variants: [
           { sku: "masterSKU2-#{@unique}", attributes: [ { name: 'mastersku', value: 'We add some content here in order to create the variant' } ] }
+          { sku: "MasterSku3_#{@unique}", prices: [
+            { value: { currencyCode: 'EUR', centAmount: 99 }, channel: { typeId: 'channel', id: @channelId } }
+            { value: { currencyCode: 'EUR', centAmount: 66 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' }, channel: { typeId: 'channel', id: @channelId } }
+          ], attributes: [ { name: 'mastersku', value: 'We add some content here in order to create another variant' } ] }
         ]
       @client.products.save(@product)
     .then (result) =>
@@ -88,9 +98,6 @@ describe '#run', ->
         version: result.version
       @client.products.byId(@masterProductId).save(data)
     .then (result) =>
-      @priceSync.getCustomerGroup(@client, 'specialPrice')
-    .then (result) =>
-      @customerGroupId = result.id
       done()
     .fail (error) ->
       console.log error
@@ -119,10 +126,13 @@ describe '#run', ->
       { value: { currencyCode: 'EUR', centAmount: 8999 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' } }
     ]
     @product.variants = [
-      { sku: 'retailer1-#{@unique}', prices: [
+      { sku: "retailer1-#{@unique}", prices: [
         { value: { currencyCode: 'EUR', centAmount: 20000 } }
         { value: { currencyCode: 'EUR', centAmount: 15000 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' } }
       ], attributes: [ { name: 'mastersku', value: "masterSKU2-#{@unique}" } ] }
+      { sku: "retailer2-#{@unique}", prices: [
+        { value: { currencyCode: 'EUR', centAmount: 99 } }
+      ], attributes: [ { name: 'mastersku', value: "MasterSku3_#{@unique}" } ] }
     ]
     @client.products.save(@product)
     .then (result) =>
@@ -135,67 +145,94 @@ describe '#run', ->
       @client.products.byId(result.id).save(data)
     .then (result) =>
       @priceSync.run (msg) =>
+        console.log 1, msg
         unless msg.status
           console.log msg
           done(msg)
 
         expect(msg.status).toBe true
-        expect(_.size msg.message).toBe 4
+        expect(_.size msg.message).toBe 5
         expect(msg.message['No mastersku attribute!']).toBe 1
         expect(msg.message['Prices updated.']).toBe 1
-        expect(msg.message['Price update postponed.']).toBe 1
+        expect(msg.message['Price update postponed.']).toBe 2
         expect(msg.message['There is no product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
+        expect(msg.message['There is no product in master for sku \'We add some content here in order to create another variant\'.']).toBe 1
 
         @priceSync.run (msg) =>
+          console.log 2, msg
           unless msg.status
             console.log msg
             done()
 
           expect(msg.status).toBe true
-          expect(_.size msg.message).toBe 3
+          expect(_.size msg.message).toBe 5
           expect(msg.message['No mastersku attribute!']).toBe 1
           expect(msg.message['Prices updated.']).toBe 2
+          expect(msg.message['Price update postponed.']).toBe 1
           expect(msg.message['There is no product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
+          expect(msg.message['There is no product in master for sku \'We add some content here in order to create another variant\'.']).toBe 1
 
-          @client.products.byId(@masterProductId).fetch().then (result) ->
-            expect(_.size result.masterData.current.masterVariant.prices).toBe 2
-            expect(_.size result.masterData.current.variants[0].prices).toBe 2
+          @priceSync.run (msg) =>
+            console.log 3, msg
+            unless msg.status
+              console.log msg
+              done()
 
-            price = result.masterData.current.masterVariant.prices[0]
-            expect(price.value.currencyCode).toBe 'EUR'
-            expect(price.value.centAmount).toBe 9999
-            expect(price.channel.typeId).toBe 'channel'
-            expect(price.channel.id).toBeDefined()
-            expect(price.customerGroup).toBeUndefined()
+            expect(msg.status).toBe true
+            expect(_.size msg.message).toBe 4
+            expect(msg.message['No mastersku attribute!']).toBe 1
+            expect(msg.message['Prices updated.']).toBe 3
+            expect(msg.message['There is no product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
+            expect(msg.message['There is no product in master for sku \'We add some content here in order to create another variant\'.']).toBe 1
 
-            price = result.masterData.current.masterVariant.prices[1]
-            expect(price.value.currencyCode).toBe 'EUR'
-            expect(price.value.centAmount).toBe 8999
-            expect(price.channel.typeId).toBe 'channel'
-            expect(price.channel.id).toBeDefined()
-            expect(price.customerGroup.typeId).toBe 'customer-group'
-            expect(price.customerGroup.id).toBeDefined()
+            @client.products.byId(@masterProductId).fetch().then (result) ->
+              expect(_.size result.masterData.current.masterVariant.prices).toBe 2
+              expect(_.size result.masterData.current.variants[0].prices).toBe 2
+              expect(_.size result.masterData.current.variants[1].prices).toBe 1
 
-            price = result.masterData.current.variants[0].prices[0]
-            expect(price.value.currencyCode).toBe 'EUR'
-            expect(price.value.centAmount).toBe 20000
-            expect(price.channel.typeId).toBe 'channel'
-            expect(price.channel.id).toBeDefined()
-            expect(price.customerGroup).toBeUndefined()
+              price = result.masterData.current.masterVariant.prices[0]
+              expect(price.value.currencyCode).toBe 'EUR'
+              expect(price.value.centAmount).toBe 9999
+              expect(price.channel.typeId).toBe 'channel'
+              expect(price.channel.id).toBeDefined()
+              expect(price.customerGroup).toBeUndefined()
 
-            price = result.masterData.current.variants[0].prices[1]
-            expect(price.value.currencyCode).toBe 'EUR'
-            expect(price.value.centAmount).toBe 15000
-            expect(price.channel.typeId).toBe 'channel'
-            expect(price.channel.id).toBeDefined()
-            expect(price.customerGroup.typeId).toBe 'customer-group'
-            expect(price.customerGroup.id).toBeDefined()
+              price = result.masterData.current.masterVariant.prices[1]
+              expect(price.value.currencyCode).toBe 'EUR'
+              expect(price.value.centAmount).toBe 8999
+              expect(price.channel.typeId).toBe 'channel'
+              expect(price.channel.id).toBeDefined()
+              expect(price.customerGroup.typeId).toBe 'customer-group'
+              expect(price.customerGroup.id).toBeDefined()
 
-            done()
-          .fail (error) ->
-            console.log error
-            done error
-          .done()
+              price = result.masterData.current.variants[0].prices[0]
+              expect(price.value.currencyCode).toBe 'EUR'
+              expect(price.value.centAmount).toBe 20000
+              expect(price.channel.typeId).toBe 'channel'
+              expect(price.channel.id).toBeDefined()
+              expect(price.customerGroup).toBeUndefined()
+
+              price = result.masterData.current.variants[0].prices[1]
+              expect(price.value.currencyCode).toBe 'EUR'
+              expect(price.value.centAmount).toBe 15000
+              expect(price.channel.typeId).toBe 'channel'
+              expect(price.channel.id).toBeDefined()
+              expect(price.customerGroup.typeId).toBe 'customer-group'
+              expect(price.customerGroup.id).toBeDefined()
+
+              console.log "PPPPP %j", result.masterData.current.variants[1].prices
+              price = result.masterData.current.variants[1].prices[0]
+              expect(price.value.currencyCode).toBe 'EUR'
+              expect(price.value.centAmount).toBe 99
+              expect(price.channel.typeId).toBe 'channel'
+              expect(price.channel.id).toBeDefined()
+              expect(price.customerGroup).toBeUndefined()
+
+              done()
+            .fail (error) ->
+              console.log error
+              done error
+            .done()
     .fail (error) ->
       console.log error
       done error

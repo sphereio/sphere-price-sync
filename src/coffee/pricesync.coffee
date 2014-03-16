@@ -180,11 +180,12 @@ class PriceSync extends CommonUpdater
         else
           if masterPrice.value.centAmount isnt retailerPrice.value.centAmount
             # Update the price's amount
-            masterPrice.value.centAmount = retailerPrice.value.centAmount
+            price = _.clone masterPrice
+            price.value.centAmount = retailerPrice.value.centAmount
             data =
               action: 'changePrice'
               variantId: variantInMaster.id
-              price: masterPrice
+              price: price
       else if retailerPrice
         # Add new price
         price = _.clone retailerPrice
@@ -200,7 +201,12 @@ class PriceSync extends CommonUpdater
           action: 'addPrice'
           variantId: variantInMaster.id
           price: price
-      else if priceType is 'normal'
+      else if priceType is CUSTOMER_GROUP_SALE and masterPrice
+        data =
+          action: 'removePrice'
+          variantId: variantInMaster.id
+          price: masterPrice
+      else
         console.error "SKU #{variantInMaster.sku}: There are NO #{priceType} prices at all."
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))

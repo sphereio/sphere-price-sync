@@ -173,3 +173,33 @@ describe 'PriceSync', ->
             id: 'cgMaster'
         staged: false
       expect(updates[0]).toEqual expectedAction
+
+    it 'should remove a special price', ->
+      masterPrice =
+        value:
+          currencyCode: 'EUR'
+          centAmount: 777
+        channel:
+          typeId: 'channel'
+          id: 'retailerB'
+        customerGroup:
+          typeId: 'customer-group'
+          id: 'cgMaster'
+
+      updates = @priceSync._updatePrices [], [masterPrice], 'retailerB', { id: 3, sku: 's7' }, 'cgRetailer', 'cgMaster'
+      expect(_.size updates).toBe 1
+      expectedAction =
+        action: 'removePrice'
+        variantId: 3
+        price:
+          value:
+            currencyCode: 'EUR'
+            centAmount: 777
+          channel:
+            typeId: 'channel'
+            id: 'retailerB'
+          customerGroup:
+            typeId: 'customer-group'
+            id: 'cgMaster'
+        staged: false
+      expect(updates[0]).toEqual expectedAction

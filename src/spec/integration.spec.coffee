@@ -156,7 +156,7 @@ describe '#run', ->
         expect(msg.message['Prices updated.']).toBe 1
         expect(msg.message['Price update postponed.']).toBe 2
         expect(msg.message['There is no published product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
-        expect(msg.message['There is no product in master for sku \'We add some content here in order to create another variant\'.']).toBe 1
+        expect(msg.message['There is no published product in master for sku \'We add some content here in order to create another variant\'.']).toBe 1
 
         @priceSync.run (msg) =>
           console.log 2, msg
@@ -169,8 +169,8 @@ describe '#run', ->
           expect(msg.message['No mastersku attribute!']).toBe 1
           expect(msg.message['Prices updated.']).toBe 2
           expect(msg.message['Price update postponed.']).toBe 1
-          expect(msg.message['There is no product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
-          expect(msg.message['There is no product in master for sku \'We add some content here in order to create another variant\'.']).toBe 1
+          expect(msg.message['There is no published product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
+          expect(msg.message['There is no published product in master for sku \'We add some content here in order to create another variant\'.']).toBe 1
 
           @priceSync.run (msg) =>
             console.log 3, msg
@@ -182,8 +182,8 @@ describe '#run', ->
             expect(_.size msg.message).toBe 4
             expect(msg.message['No mastersku attribute!']).toBe 1
             expect(msg.message['Prices updated.']).toBe 3
-            expect(msg.message['There is no product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
-            expect(msg.message['There is no product in master for sku \'We add some content here in order to create another variant\'.']).toBe 1
+            expect(msg.message['There is no published product in master for sku \'We add some content here in order to create the variant\'.']).toBe 1
+            expect(msg.message['There is no published product in master for sku \'We add some content here in order to create another variant\'.']).toBe 1
 
             @client.products.byId(@masterProductId).fetch().then (result) ->
               expect(_.size result.masterData.current.masterVariant.prices).toBe 2

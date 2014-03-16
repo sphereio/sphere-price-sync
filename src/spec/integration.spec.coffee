@@ -76,7 +76,7 @@ describe '#run', ->
         masterVariant:
           sku: "mastersku#{@unique}"
         variants: [
-          { sku: "mastersku2#{@unique}", attributes: [ { name: 'mastersku', value: 'We add some content here in order to create the variant' } ] }
+          { sku: "masterSKU2-#{@unique}", attributes: [ { name: 'mastersku', value: 'We add some content here in order to create the variant' } ] }
         ]
       @client.products.save(@product)
     .then (result) =>
@@ -122,7 +122,7 @@ describe '#run', ->
       { sku: 'retailer1-#{@unique}', prices: [
         { value: { currencyCode: 'EUR', centAmount: 20000 } }
         { value: { currencyCode: 'EUR', centAmount: 15000 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' } }
-      ], attributes: [ { name: 'mastersku', value: "mastersku2#{@unique}" } ] }
+      ], attributes: [ { name: 'mastersku', value: "masterSKU2-#{@unique}" } ] }
     ]
     @client.products.save(@product)
     .then (result) =>

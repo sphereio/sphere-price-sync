@@ -136,7 +136,7 @@ class PriceSync extends CommonUpdater
       unless masterSku
         deferred.reject 'No mastersku set!'
       else
-        query = encodeURIComponent "masterVariant(sku = \"#{masterSku}\") or variants(sku = \"#{masterSku.toLowerCase()}\")"
+        query = encodeURIComponent "masterVariant(sku = \"#{masterSku}\") or variants(sku = \"#{masterSku}\")"
         client._rest.GET "/product-projections?where=#{query}", (error, response, body) ->
           if body.total isnt 1
             deferred.reject "There is no product in master for sku '#{masterSku}'."

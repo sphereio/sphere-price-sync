@@ -206,7 +206,7 @@ class PriceSync extends CommonUpdater
           action: 'removePrice'
           variantId: variantInMaster.id
           price: masterPrice
-      else
+      else if priceType isnt CUSTOMER_GROUP_SALE
         console.error "SKU #{variantInMaster.sku}: There are NO #{priceType} prices at all."
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))

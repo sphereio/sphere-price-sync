@@ -37,18 +37,15 @@ class PriceSync extends CommonUpdater
       @getCustomerGroup(@masterClient, CUSTOMER_GROUP_SALE)
       @getCustomerGroup(@retailerClient, CUSTOMER_GROUP_SALE)
     ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup) =>
-      console.error "retailerChannelInMaster %j", retailerChannelInMaster
-      console.error "masterCustomerGroup %j", masterCustomerGroup
-      console.error "retailerCustomerGroup %j", retailerCustomerGroup
+      @_logInfo retailerChannelInMaster: retailerChannelInMaster
+      @_logInfo masterCustomerGroup: masterCustomerGroup
+      @_logInfo retailerCustomerGroup: retailerCustomerGroup
 
-      @getPublishedProducts @retailerClient, ((page, count) -> console.error "Page #{page} processed - #{count} price update(s) done."), (retailerProduct) =>
+      @getPublishedProducts @retailerClient, ((page, count) => @_logInfo "Page #{page} processed - #{count} price update(s) done."), (retailerProduct) =>
         current = retailerProduct.masterData.current
         current.variants or= []
         variants = [current.masterVariant].concat(current.variants)
         stagedVariants = [retailerProduct.masterData.staged.masterVariant].concat(retailerProduct.masterData.staged.variants)
-
-        console.error "C %j", _.map(variants, (a) -> a.sku)
-        console.error "S %j", _.map(stagedVariants, (a) -> a.sku)
 
         v = _.map variants, (retailerVariant) =>
           @taskQueue.addTask _.bind(@_processVariant, this, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
@@ -61,7 +58,7 @@ class PriceSync extends CommonUpdater
     .then (variantDataInMaster) =>
       @syncVariantPrices(variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
     .fail (msg) =>
-      console.warn msg
+      @_logWarn msg
       Q({ updates: 0 })
 
   syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
@@ -77,6 +74,8 @@ class PriceSync extends CommonUpdater
         variantId: variantDataInMaster.productId
         actions: actions
 
+      @_logDebug update: data
+
       @masterClient.products.byId(variantDataInMaster.productId).save(data)
       .then ->
         Q({ updates: _.size(actions) })
@@ -88,7 +87,7 @@ class PriceSync extends CommonUpdater
       if total? and (page - 1) * perPage > total
         deferred.resolve acc
       else
-        client.products.page(page).perPage(perPage).sort("id").fetch()
+        client.products.page(page).perPage(perPage).sort('id').fetch()
         .then (payload) ->
           processes = _.map payload.results, (elem) ->
             processFn(elem)
@@ -147,17 +146,11 @@ class PriceSync extends CommonUpdater
                 variant: match
               deferred.resolve data
             else
-              deferred.reject new Error("Can't find matching variant")
+              deferred.reject new Error('Can not find matching variant.')
 
     deferred.promise
 
   _filterPrices: (retailerVariant, variantInMaster, retailerCustomerGroup, masterCustomerGroup, retailerChannel) ->
-    console.error "f retailerVariant %j", retailerVariant
-    console.error "f variantInMaster %j", variantInMaster
-    console.error "f retailerCustomerGroup %j", retailerCustomerGroup
-    console.error "f masterCustomerGroup %j", masterCustomerGroup
-    console.error "f retailerChannel %j", retailerChannel
-
     retailerPrices = _.select retailerVariant.prices, (price) ->
       not _.has(price, 'customerGroup') or price.customerGroup.id is retailerCustomerGroup.id
 
@@ -171,17 +164,15 @@ class PriceSync extends CommonUpdater
       retailerPrices: retailerPrices
       masterPrices: masterPrices
 
-    console.error "f data %j", data
     data
-
 
   _updatePrices: (retailerPrices, masterPrices, channelId, variantInMaster, retailerCustomerGroupId, masterCustomerGroupId) ->
     actions = []
-    syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') ->
-      console.error "Comparing %j", priceType, retailerPrice, masterPrice
+    syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') =>
+      @_logDebug "Comparing %j", priceType, retailerPrice, masterPrice
       if masterPrice? and retailerPrice?
         if masterPrice.value.currencyCode isnt retailerPrice.value.currencyCode
-          console.error "SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
+          @_logError "SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
         else
           if masterPrice.value.centAmount isnt retailerPrice.value.centAmount
             # Update the price's amount
@@ -212,23 +203,22 @@ class PriceSync extends CommonUpdater
           variantId: variantInMaster.id
           price: masterPrice
       else if priceType isnt CUSTOMER_GROUP_SALE
-        console.error "SKU #{variantInMaster.sku}: There are NO #{priceType} prices at all."
+        @_logWarn "SKU #{variantInMaster.sku}: There are NO #{priceType} prices at all."
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
-    if action
+    if action?
       #actions.push action
       liveAction = _.clone action
       liveAction.staged = false
       actions.push liveAction
 
     action = syncAmountOrCreate(@_salesPrice(retailerPrices, retailerCustomerGroupId), @_salesPrice(masterPrices, masterCustomerGroupId), CUSTOMER_GROUP_SALE)
-    if action
+    if action?
       #actions.push action
       liveAction = _.clone action
       liveAction.staged = false
       actions.push liveAction
 
-    console.error "ACTIONS %j", actions
     actions
 
   _normalPrice: (prices) ->
@@ -238,5 +228,21 @@ class PriceSync extends CommonUpdater
   _salesPrice: (prices, customerGroupId) ->
     _.find prices, (p) ->
       _.has(p, 'customerGroup') and p.customerGroup.id is customerGroupId
+
+  _logError: (msg) ->
+    if @logger?
+      @logger.error msg
+
+  _logWarn: (msg) ->
+    if @logger?
+      @logger.warn msg
+
+  _logInfo: (msg) ->
+    if @logger?
+      @logger.info msg
+
+  _logDebug: (msg) ->
+    if @logger?
+      @logger.debug msg
       
 module.exports = PriceSync

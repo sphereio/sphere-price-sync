@@ -48,14 +48,21 @@ class PriceSync extends CommonUpdater
           _.each variants, (retailerVariant) =>
             updates.push @syncVariantPrices(retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
 
-        Q.all(updates).then (msg) =>
-          @returnResult true, msg, callback
-        .fail (msg) =>
-          @returnResult false, msg, callback
-        .done()
+        @processInBatches updates, callback
     .fail (msg) =>
       @returnResult false, msg, callback
     .done()
+
+  processInBatches: (posts, callback, numberOfParallelRequest = 20, acc = []) =>
+    current = _.take posts, numberOfParallelRequest
+    Q.all(current).then (msg) =>
+      messages = acc.concat(msg)
+      if _.size(current) < numberOfParallelRequest
+        @returnResult true, messages, callback
+      else
+        @processInBatches _.tail(posts, numberOfParallelRequest), callback, numberOfParallelRequest, messages
+    .fail (msg) =>
+      @returnResult false, msg, callback
 
   syncVariantPrices: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     deferred = Q.defer()

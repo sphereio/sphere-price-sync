@@ -32,9 +32,9 @@ options =
 updater = new PriceSync options
 updater.run()
 .then (msg) ->
-  logger.info msg
+  logger.info message: msg
   process.exit 0
 .fail (msg) ->
-  logger.error msg
+  logger.error error: error
   process.exit 1
 .done()

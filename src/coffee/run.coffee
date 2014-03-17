@@ -30,9 +30,11 @@ options =
     client_secret: argv.clientSecret
 
 updater = new PriceSync options
-updater.run (msg) ->
-  if msg.status
-    logger.info msg
-    process.exit 0
+updater.run()
+.then (msg) ->
+  logger.info msg
+  process.exit 0
+.fail (msg) ->
   logger.error msg
   process.exit 1
+.done()

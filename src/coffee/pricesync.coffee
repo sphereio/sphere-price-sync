@@ -2,6 +2,7 @@ _ = require('underscore')._
 InventoryUpdater = require('sphere-node-sync').InventoryUpdater
 CommonUpdater = require('sphere-node-sync').CommonUpdater
 SphereClient = require 'sphere-node-client'
+TaskQueue = require './taskqueue'
 Q = require 'q'
 
 class PriceSync extends CommonUpdater
@@ -28,7 +29,9 @@ class PriceSync extends CommonUpdater
 
     @inventoryUpdater = new InventoryUpdater masterOpts
 
-  run: (callback) ->
+    @taskQueue = new TaskQueue()
+
+  run: ->
     Q.all([
       @inventoryUpdater.ensureChannelByKey(@masterClient._rest, @retailerProjectKey, CHANNEL_ROLES)
       @getCustomerGroup(@masterClient, CUSTOMER_GROUP_SALE)
@@ -36,65 +39,38 @@ class PriceSync extends CommonUpdater
       @getPublishedProducts(@retailerClient)
     ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup, retailerProducts) =>
       console.log "Retailer products: #{_.size retailerProducts}"
-
       if _.size(retailerProducts) is 0
-        @returnResult true, "Nothing to do.", callback
+        Q("Nothing to do.")
       else
-        updates = []
-        _.each retailerProducts, (retailerProduct) =>
+
+        gets = _.map retailerProducts, (retailerProduct) =>
           current = retailerProduct.masterData.current
           current.variants or= []
           variants = [current.masterVariant].concat current.variants
-          _.each variants, (retailerVariant) =>
-            updates.push @syncVariantPrices(retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
+          v = _.map variants, (retailerVariant) =>
+            @taskQueue.addTask _.bind(@_processVariant, this, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
+          Q.all(v)
 
-        @processInBatches updates, callback
-    .fail (msg) =>
-      @returnResult false, msg, callback
-    .done()
+        Q.all(gets)
 
-  processInBatches: (posts, callback, numberOfParallelRequest = 20, acc = []) =>
-    current = _.take posts, numberOfParallelRequest
-    Q.all(current).then (msg) =>
-      messages = acc.concat(msg)
-      if _.size(current) < numberOfParallelRequest
-        @returnResult true, messages, callback
-      else
-        @processInBatches _.tail(posts, numberOfParallelRequest), callback, numberOfParallelRequest, messages
-    .fail (msg) =>
-      @returnResult false, msg, callback
-    .done()
-
-  syncVariantPrices: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
-    deferred = Q.defer()
+  _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     @getPublishedVariantByMasterSku(@masterClient, retailerVariant)
-    .then (variantData) =>
-      variantInMaster =  variantData.variant
+    .then (variantDataInMaster) =>
+      @syncVariantPrices(variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
+    .fail (msg) =>
+      msg
 
-      prices = @_filterPrices(retailerVariant, variantInMaster, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
-      actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantInMaster, retailerCustomerGroup.id, masterCustomerGroup.id)
+
+  syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
+    prices = @_filterPrices(retailerVariant, variantDataInMaster.variant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
+    actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, retailerCustomerGroup.id, masterCustomerGroup.id)
       
-      data =
-        version: variantData.productVersion
-        variantId: variantInMaster.id
-        actions: actions
+    data =
+      version: variantDataInMaster.productVersion
+      variantId: variantDataInMaster.productId
+      actions: actions
 
-      @masterClient.products.byId(variantData.productId).save(data)
-    .then ->
-      deferred.resolve "Prices updated."
-    .fail (error) ->
-      if error.statusCode
-        if error.statusCode is 409
-          # TODO: retrigger it
-          deferred.resolve "Price update postponed." # will be done at next interation
-        else
-          deferred.reject error # This one is really bad as the price couldn't update
-      else
-        # We will resolve here as the problems on getting the data from master should not influence the other updates
-        deferred.resolve error
-    .done()
-
-    deferred.promise
+    @masterClient.products.byId(variantDataInMaster.productId).save(data)
 
   getPublishedProducts: (client, offsetInDays = 2) ->
     deferred = Q.defer()
@@ -124,7 +100,7 @@ class PriceSync extends CommonUpdater
       if _.size(result.results) is 1
         deferred.resolve result.results[0]
       else
-        deferred.reject "Can not find cutomer group '#{name}'."
+        deferred.reject new Error("Can not find cutomer group '#{name}'.")
     .fail (error) ->
       deferred.reject error
     .done()
@@ -137,16 +113,16 @@ class PriceSync extends CommonUpdater
     attribute = _.find variant.attributes, (attribute) ->
       attribute.name is 'mastersku'
     unless attribute
-      deferred.reject "No mastersku attribute!"
+      deferred.reject new Error("No mastersku attribute!")
     else
       masterSku = attribute.value
       unless masterSku
-        deferred.reject 'No mastersku set!'
+        deferred.reject new Error('No mastersku set!')
       else
         query = encodeURIComponent "masterVariant(sku = \"#{masterSku}\") or variants(sku = \"#{masterSku}\")"
         client._rest.GET "/product-projections?where=#{query}", (error, response, body) ->
           if body.total isnt 1
-            deferred.reject "There is no published product in master for sku '#{masterSku}'."
+            deferred.reject new Error("There is no published product in master for sku '#{masterSku}'.")
           else
             product = body.results[0]
             variants = [product.masterVariant].concat(product.variants)
@@ -159,7 +135,7 @@ class PriceSync extends CommonUpdater
                 variant: match
               deferred.resolve data
             else
-              deferred.reject "Can't find matching variant"
+              deferred.reject new Error("Can't find matching variant")
 
     deferred.promise
 

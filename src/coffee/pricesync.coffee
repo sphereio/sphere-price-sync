@@ -88,7 +88,7 @@ class PriceSync extends CommonUpdater
       if total? and page * perPage > total
         deferred.resolve acc
       else
-        client.products.page(page).perPage(perPage).fetch()
+        client.products.page(page).perPage(perPage).sort("id").fetch()
         .then (payload) ->
           processes = _.map payload.results, (elem) ->
             processFn(elem)

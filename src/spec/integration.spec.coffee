@@ -42,15 +42,19 @@ describe '#run', ->
               deferred.resolve body
             else
               deferred.reject body
+      .fail (error) ->
+        console.log error
+        done(error)
       deferred.promise
 
     @priceSync.masterClient.products.perPage(0).fetch()
     .then (products) ->
-      console.log 1
+      console.log 0
       deletions = _.map products.results, (product) ->
         delProducts product.id, product.version
       Q.all(deletions)
     .then =>
+      console.log 1
       @priceSync.getCustomerGroup(@client, 'specialPrice')
     .then (result) =>
       console.log 2

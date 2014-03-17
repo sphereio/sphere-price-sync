@@ -85,7 +85,7 @@ class PriceSync extends CommonUpdater
     deferred = Q.defer()
 
     pageProducts = (page = 1, perPage = 50, total, acc = 0) ->
-      if total? and page * perPage > total
+      if total? and (page - 1) * perPage > total
         deferred.resolve acc
       else
         client.products.page(page).perPage(perPage).sort("id").fetch()

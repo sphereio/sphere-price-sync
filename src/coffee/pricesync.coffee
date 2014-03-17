@@ -207,14 +207,14 @@ class PriceSync extends CommonUpdater
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
     if action?
-      #actions.push action
+      actions.push action
       liveAction = _.clone action
       liveAction.staged = false
       actions.push liveAction
 
     action = syncAmountOrCreate(@_salesPrice(retailerPrices, retailerCustomerGroupId), @_salesPrice(masterPrices, masterCustomerGroupId), CUSTOMER_GROUP_SALE)
     if action?
-      #actions.push action
+      actions.push action
       liveAction = _.clone action
       liveAction.staged = false
       actions.push liveAction

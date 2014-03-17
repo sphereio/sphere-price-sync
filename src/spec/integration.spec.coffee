@@ -172,7 +172,22 @@ describe '#run', ->
       expect(price.channel.id).toBeDefined()
       expect(price.customerGroup).toBeUndefined()
 
+      price = result.masterData.staged.masterVariant.prices[0]
+      expect(price.value.currencyCode).toBe 'EUR'
+      expect(price.value.centAmount).toBe 9999
+      expect(price.channel.typeId).toBe 'channel'
+      expect(price.channel.id).toBeDefined()
+      expect(price.customerGroup).toBeUndefined()
+
       price = result.masterData.current.masterVariant.prices[1]
+      expect(price.value.currencyCode).toBe 'EUR'
+      expect(price.value.centAmount).toBe 8999
+      expect(price.channel.typeId).toBe 'channel'
+      expect(price.channel.id).toBeDefined()
+      expect(price.customerGroup.typeId).toBe 'customer-group'
+      expect(price.customerGroup.id).toBeDefined()
+
+      price = result.masterData.staged.masterVariant.prices[1]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 8999
       expect(price.channel.typeId).toBe 'channel'
@@ -187,7 +202,22 @@ describe '#run', ->
       expect(price.channel.id).toBeDefined()
       expect(price.customerGroup).toBeUndefined()
 
+      price = result.masterData.staged.variants[0].prices[0]
+      expect(price.value.currencyCode).toBe 'EUR'
+      expect(price.value.centAmount).toBe 20000
+      expect(price.channel.typeId).toBe 'channel'
+      expect(price.channel.id).toBeDefined()
+      expect(price.customerGroup).toBeUndefined()
+
       price = result.masterData.current.variants[0].prices[1]
+      expect(price.value.currencyCode).toBe 'EUR'
+      expect(price.value.centAmount).toBe 15000
+      expect(price.channel.typeId).toBe 'channel'
+      expect(price.channel.id).toBeDefined()
+      expect(price.customerGroup.typeId).toBe 'customer-group'
+      expect(price.customerGroup.id).toBeDefined()
+
+      price = result.masterData.staged.variants[0].prices[1]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 15000
       expect(price.channel.typeId).toBe 'channel'
@@ -201,6 +231,14 @@ describe '#run', ->
       expect(price.channel.typeId).toBe 'channel'
       expect(price.channel.id).toBeDefined()
       expect(price.customerGroup).toBeUndefined()
+
+      price = result.masterData.staged.variants[1].prices[0]
+      expect(price.value.currencyCode).toBe 'EUR'
+      expect(price.value.centAmount).toBe 99
+      expect(price.channel.typeId).toBe 'channel'
+      expect(price.channel.id).toBeDefined()
+      expect(price.customerGroup).toBeUndefined()
+
       done()
 
     .fail (error) ->

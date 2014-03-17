@@ -36,56 +36,59 @@ class PriceSync extends CommonUpdater
       @inventoryUpdater.ensureChannelByKey(@masterClient._rest, @retailerProjectKey, CHANNEL_ROLES)
       @getCustomerGroup(@masterClient, CUSTOMER_GROUP_SALE)
       @getCustomerGroup(@retailerClient, CUSTOMER_GROUP_SALE)
-      @getPublishedProducts(@retailerClient)
-    ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup, retailerProducts) =>
-      console.log "Retailer products: #{_.size retailerProducts}"
-      if _.size(retailerProducts) is 0
-        Q("Nothing to do.")
-      else
-
-        gets = _.map retailerProducts, (retailerProduct) =>
-          current = retailerProduct.masterData.current
-          current.variants or= []
-          variants = [current.masterVariant].concat current.variants
-          v = _.map variants, (retailerVariant) =>
-            @taskQueue.addTask _.bind(@_processVariant, this, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
-          Q.all(v)
-
-        Q.all(gets)
+    ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup) =>
+      @getPublishedProducts @retailerClient, ((page, count) -> console.error "Page #{page} processed - #{count} price update(s) done."), (retailerProduct) =>
+        current = retailerProduct.masterData.current
+        current.variants or= []
+        variants = [current.masterVariant].concat current.variants
+        v = _.map variants, (retailerVariant) =>
+          @taskQueue.addTask _.bind(@_processVariant, this, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
+        Q.all(v)
+        .then (infos) ->
+          x = _.reduce infos, ((acc, info) -> acc + info.updates), 0
 
   _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     @getPublishedVariantByMasterSku(@masterClient, retailerVariant)
     .then (variantDataInMaster) =>
       @syncVariantPrices(variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
     .fail (msg) =>
-      msg
-
+      console.warn msg
+      Q({ updates: 0 })
 
   syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     prices = @_filterPrices(retailerVariant, variantDataInMaster.variant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
     actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, retailerCustomerGroup.id, masterCustomerGroup.id)
       
-    data =
-      version: variantDataInMaster.productVersion
-      variantId: variantDataInMaster.productId
-      actions: actions
+    if _.isEmpty actions
+      Q({ updates: 0 })
 
-    @masterClient.products.byId(variantDataInMaster.productId).save(data)
+    else
+      data =
+        version: variantDataInMaster.productVersion
+        variantId: variantDataInMaster.productId
+        actions: actions
 
-  getPublishedProducts: (client, offsetInDays = 2) ->
+      @masterClient.products.byId(variantDataInMaster.productId).save(data)
+      .then ->
+        Q({ updates: _.size(actions) })
+
+  getPublishedProducts: (client, pageProcessedCb, processFn) ->
     deferred = Q.defer()
 
-    date = new Date()
-    date.setDate(date.getDate() - offsetInDays)
-    offSet = "#{date.toISOString().substring(0,10)}T00:00:00.000Z"
-
-    pageProducts = (page = 0, perPage = 50, total, acc = []) ->
+    pageProducts = (page = 0, perPage = 50, total, acc = 0) ->
       if total? and page * perPage > total
         deferred.resolve acc
       else
         client.products.page(page).perPage(perPage).fetch()
         .then (payload) ->
-          pageProducts page + 1, perPage, payload.total, acc.concat(payload.results)
+          processes = _.map payload.results, (elem) ->
+            processFn(elem)
+          Q.all(processes)
+          .then (counts) ->
+            [_.reduce(counts, ((acc, count) -> acc + count), 0), payload]
+        .then ([count, payload]) ->
+          pageProcessedCb(page, count)
+          pageProducts page + 1, perPage, payload.total, count + acc
         .fail (error) ->
           deferred.reject error
         .done()

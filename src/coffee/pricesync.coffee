@@ -167,7 +167,7 @@ class PriceSync extends CommonUpdater
   _updatePrices: (retailerPrices, masterPrices, channelId, variantInMaster, retailerCustomerGroupId, masterCustomerGroupId) ->
     actions = []
     syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') ->
-      console.error "Comparing %j", retailerPrice, masterPrices
+      console.error "Comparing %j", priceType, retailerPrice, masterPrice
       if masterPrice? and retailerPrice?
         if masterPrice.value.currencyCode isnt retailerPrice.value.currencyCode
           console.error "SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
@@ -222,7 +222,7 @@ class PriceSync extends CommonUpdater
 
   _normalPrice: (prices) ->
     _.find prices, (p) ->
-      not _.has p, 'customerGroup'
+      not _.has(p, 'customerGroup')
 
   _salesPrice: (prices, customerGroupId) ->
     _.find prices, (p) ->

@@ -45,7 +45,7 @@ class PriceSync extends CommonUpdater
           @taskQueue.addTask _.bind(@_processVariant, this, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
         Q.all(v)
         .then (infos) ->
-          x = _.reduce infos, ((acc, info) -> acc + info.updates), 0
+          _.reduce infos, ((acc, info) -> acc + info.updates), 0
 
   _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     @getPublishedVariantByMasterSku(@masterClient, retailerVariant)
@@ -59,7 +59,7 @@ class PriceSync extends CommonUpdater
     prices = @_filterPrices(retailerVariant, variantDataInMaster.variant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
     actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, retailerCustomerGroup.id, masterCustomerGroup.id)
       
-    if _.isEmpty actions
+    if _.isEmpty(actions)
       Q({ updates: 0 })
 
     else
@@ -155,6 +155,9 @@ class PriceSync extends CommonUpdater
     data =
       retailerPrices: retailerPrices
       masterPrices: masterPrices
+
+    console.error data
+    data
 
 
   _updatePrices: (retailerPrices, masterPrices, channelId, variantInMaster, retailerCustomerGroupId, masterCustomerGroupId) ->

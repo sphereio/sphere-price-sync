@@ -115,7 +115,7 @@ describe '#run', ->
   # - create a product for the retailer with the mastersku attribute
   # - run sync twice
   # - check price updates
-  it 'sync normal price on masterVariant and in variant', (done) ->
+  it 'sync prices on masterVariant and in variants', (done) ->
     @product.slug.en = "p-#{@unique}1"
     @product.masterVariant.sku = "retailer-#{@unique}"
     @product.masterVariant.attributes = [
@@ -220,7 +220,6 @@ describe '#run', ->
               expect(price.customerGroup.typeId).toBe 'customer-group'
               expect(price.customerGroup.id).toBeDefined()
 
-              console.log "PPPPP %j", result.masterData.current.variants[1].prices
               price = result.masterData.current.variants[1].prices[0]
               expect(price.value.currencyCode).toBe 'EUR'
               expect(price.value.centAmount).toBe 99

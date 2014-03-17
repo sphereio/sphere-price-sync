@@ -63,6 +63,7 @@ class PriceSync extends CommonUpdater
         @processInBatches _.tail(posts, numberOfParallelRequest), callback, numberOfParallelRequest, messages
     .fail (msg) =>
       @returnResult false, msg, callback
+    .done()
 
   syncVariantPrices: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     deferred = Q.defer()
@@ -79,19 +80,18 @@ class PriceSync extends CommonUpdater
         actions: actions
 
       @masterClient.products.byId(variantData.productId).save(data)
-      .then ->
-        deferred.resolve "Prices updated."
-      .fail (error) ->
+    .then ->
+      deferred.resolve "Prices updated."
+    .fail (error) ->
+      if error.statusCode
         if error.statusCode is 409
           # TODO: retrigger it
           deferred.resolve "Price update postponed." # will be done at next interation
         else
           deferred.reject error # This one is really bad as the price couldn't update
-      .done()
-
-    .fail (msg) ->
-      # We will resolve here as the problems on getting the data from master should not influence the other updates
-      deferred.resolve msg
+      else
+        # We will resolve here as the problems on getting the data from master should not influence the other updates
+        deferred.resolve error
     .done()
 
     deferred.promise

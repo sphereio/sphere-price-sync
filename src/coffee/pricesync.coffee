@@ -147,6 +147,12 @@ class PriceSync extends CommonUpdater
     deferred.promise
 
   _filterPrices: (retailerVariant, variantInMaster, retailerCustomerGroup, masterCustomerGroup, retailerChannel) ->
+    console.error "f retailerVariant %j", retailerVariant
+    console.error "f variantInMaster %j", variantInMaster
+    console.error "f retailerCustomerGroup %j", retailerCustomerGroup
+    console.error "f masterCustomerGroup %j", masterCustomerGroup
+    console.error "f retailerChannel %j", retailerChannel
+
     retailerPrices = _.select retailerVariant.prices, (price) ->
       not _.has(price, 'customerGroup') or price.customerGroup.id is retailerCustomerGroup.id
 
@@ -160,7 +166,7 @@ class PriceSync extends CommonUpdater
       retailerPrices: retailerPrices
       masterPrices: masterPrices
 
-    console.error data
+    console.error "f data %j", data
     data
 
 

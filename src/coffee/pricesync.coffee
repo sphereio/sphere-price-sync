@@ -37,6 +37,10 @@ class PriceSync extends CommonUpdater
       @getCustomerGroup(@masterClient, CUSTOMER_GROUP_SALE)
       @getCustomerGroup(@retailerClient, CUSTOMER_GROUP_SALE)
     ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup) =>
+      console.error "retailerChannelInMaster %j", retailerChannelInMaster
+      console.error "masterCustomerGroup %j", masterCustomerGroup
+      console.error "retailerCustomerGroup %j", retailerCustomerGroup
+
       @getPublishedProducts @retailerClient, ((page, count) -> console.error "Page #{page} processed - #{count} price update(s) done."), (retailerProduct) =>
         current = retailerProduct.masterData.current
         current.variants or= []
@@ -163,7 +167,8 @@ class PriceSync extends CommonUpdater
   _updatePrices: (retailerPrices, masterPrices, channelId, variantInMaster, retailerCustomerGroupId, masterCustomerGroupId) ->
     actions = []
     syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') ->
-      if masterPrice and retailerPrice
+      console.error "Comparing %j", retailerPrice, masterPrices
+      if masterPrice? and retailerPrice?
         if masterPrice.value.currencyCode isnt retailerPrice.value.currencyCode
           console.error "SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
         else
@@ -175,7 +180,7 @@ class PriceSync extends CommonUpdater
               action: 'changePrice'
               variantId: variantInMaster.id
               price: price
-      else if retailerPrice
+      else if retailerPrice?
         # Add new price
         price = _.clone retailerPrice
         # add channel for retailer in master
@@ -212,6 +217,7 @@ class PriceSync extends CommonUpdater
       liveAction.staged = false
       actions.push liveAction
 
+    console.error "ACTIONS %j", actions
     actions
 
   _normalPrice: (prices) ->

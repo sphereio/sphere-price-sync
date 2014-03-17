@@ -84,7 +84,7 @@ class PriceSync extends CommonUpdater
   getPublishedProducts: (client, pageProcessedCb, processFn) ->
     deferred = Q.defer()
 
-    pageProducts = (page = 0, perPage = 50, total, acc = 0) ->
+    pageProducts = (page = 1, perPage = 50, total, acc = 0) ->
       if total? and page * perPage > total
         deferred.resolve acc
       else

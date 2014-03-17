@@ -35,7 +35,7 @@ class PriceSync extends CommonUpdater
       @getCustomerGroup(@retailerClient, CUSTOMER_GROUP_SALE)
       @getPublishedProducts(@retailerClient)
     ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup, retailerProducts) =>
-      @logger.debug "Retailer products: #{_.size retailerProducts.results}" if @logger
+      console.log "Retailer products: #{_.size retailerProducts}"
 
       if _.size(retailerProducts) is 0
         @returnResult true, "Nothing to do.", callback
@@ -43,7 +43,7 @@ class PriceSync extends CommonUpdater
         updates = []
         _.each retailerProducts, (retailerProduct) =>
           current = retailerProduct.masterData.current
-          current.variant or= []
+          current.variants or= []
           variants = [current.masterVariant].concat current.variants
           _.each variants, (retailerVariant) =>
             updates.push @syncVariantPrices(retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)

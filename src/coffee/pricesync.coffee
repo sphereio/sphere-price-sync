@@ -77,6 +77,8 @@ class PriceSync extends CommonUpdater
         variantId: variantDataInMaster.productId
         actions: actions
 
+      console.error "ACTIONS %j", data
+
       @masterClient.products.byId(variantDataInMaster.productId).save(data)
       .then ->
         Q({ updates: _.size(actions) })
@@ -140,7 +142,7 @@ class PriceSync extends CommonUpdater
             variants = [product.masterVariant].concat(product.variants)
             match = _.find variants, (v) ->
               v.sku is masterSku
-            if match
+            if match?
               data =
                 productId: product.id
                 productVersion: product.version
@@ -152,12 +154,6 @@ class PriceSync extends CommonUpdater
     deferred.promise
 
   _filterPrices: (retailerVariant, variantInMaster, retailerCustomerGroup, masterCustomerGroup, retailerChannel) ->
-    console.error "f retailerVariant %j", retailerVariant
-    console.error "f variantInMaster %j", variantInMaster
-    console.error "f retailerCustomerGroup %j", retailerCustomerGroup
-    console.error "f masterCustomerGroup %j", masterCustomerGroup
-    console.error "f retailerChannel %j", retailerChannel
-
     retailerPrices = _.select retailerVariant.prices, (price) ->
       not _.has(price, 'customerGroup') or price.customerGroup.id is retailerCustomerGroup.id
 
@@ -171,7 +167,6 @@ class PriceSync extends CommonUpdater
       retailerPrices: retailerPrices
       masterPrices: masterPrices
 
-    console.error "f data %j", data
     data
 
 
@@ -198,7 +193,7 @@ class PriceSync extends CommonUpdater
         price.channel =
           typeId: 'channel'
           id: channelId
-        # If the price has a customerGroup set, we have to update the id with the one from master
+        # when the price has a customerGroup set, we have to update the id with the one from master
         if _.has price, 'customerGroup'
           price.customerGroup.id = masterCustomerGroupId
 
@@ -215,20 +210,19 @@ class PriceSync extends CommonUpdater
         console.error "SKU #{variantInMaster.sku}: There are NO #{priceType} prices at all."
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
-    if action
+    if action?
       #actions.push action
       liveAction = _.clone action
       liveAction.staged = false
       actions.push liveAction
 
     action = syncAmountOrCreate(@_salesPrice(retailerPrices, retailerCustomerGroupId), @_salesPrice(masterPrices, masterCustomerGroupId), CUSTOMER_GROUP_SALE)
-    if action
+    if action?
       #actions.push action
       liveAction = _.clone action
       liveAction.staged = false
       actions.push liveAction
 
-    console.error "ACTIONS %j", actions
     actions
 
   _normalPrice: (prices) ->

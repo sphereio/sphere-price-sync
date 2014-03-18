@@ -37,18 +37,11 @@ class PriceSync extends CommonUpdater
       @getCustomerGroup(@masterClient, CUSTOMER_GROUP_SALE)
       @getCustomerGroup(@retailerClient, CUSTOMER_GROUP_SALE)
     ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup) =>
-      console.error "retailerChannelInMaster %j", retailerChannelInMaster
-      console.error "masterCustomerGroup %j", masterCustomerGroup
-      console.error "retailerCustomerGroup %j", retailerCustomerGroup
-
       @getPublishedProducts @retailerClient, ((page, count) -> console.error "Page #{page} processed - #{count} price update(s) done."), (retailerProduct) =>
         current = retailerProduct.masterData.current
         current.variants or= []
         variants = [current.masterVariant].concat(current.variants)
         stagedVariants = [retailerProduct.masterData.staged.masterVariant].concat(retailerProduct.masterData.staged.variants)
-
-        console.error "C %j", _.map(variants, (a) -> a.sku)
-        console.error "S %j", _.map(stagedVariants, (a) -> a.sku)
 
         v = _.map variants, (retailerVariant) =>
           @taskQueue.addTask _.bind(@_processVariant, this, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
@@ -67,7 +60,7 @@ class PriceSync extends CommonUpdater
   syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     prices = @_filterPrices(retailerVariant, variantDataInMaster.variant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
     actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, retailerCustomerGroup.id, masterCustomerGroup.id)
-      
+
     if _.isEmpty(actions)
       Q({ updates: 0 })
 
@@ -152,18 +145,12 @@ class PriceSync extends CommonUpdater
     deferred.promise
 
   _filterPrices: (retailerVariant, variantInMaster, retailerCustomerGroup, masterCustomerGroup, retailerChannel) ->
-    console.error "f retailerVariant %j", retailerVariant
-    console.error "f variantInMaster %j", variantInMaster
-    console.error "f retailerCustomerGroup %j", retailerCustomerGroup
-    console.error "f masterCustomerGroup %j", masterCustomerGroup
-    console.error "f retailerChannel %j", retailerChannel
-
     retailerPrices = _.select retailerVariant.prices, (price) ->
       not _.has(price, 'customerGroup') or price.customerGroup.id is retailerCustomerGroup.id
 
     masterPricesWithRetailerChannel = _.select variantInMaster.prices, (price) ->
       _.has(price, 'channel') and price.channel.id is retailerChannel.id
-    
+
     masterPrices = _.select masterPricesWithRetailerChannel, (price) ->
       not _.has(price, 'customerGroup') or price.customerGroup.id is masterCustomerGroup.id
 
@@ -171,14 +158,12 @@ class PriceSync extends CommonUpdater
       retailerPrices: retailerPrices
       masterPrices: masterPrices
 
-    console.error "f data %j", data
     data
 
 
   _updatePrices: (retailerPrices, masterPrices, channelId, variantInMaster, retailerCustomerGroupId, masterCustomerGroupId) ->
     actions = []
     syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') ->
-      console.error "Comparing %j", priceType, retailerPrice, masterPrice
       if masterPrice? and retailerPrice?
         if masterPrice.value.currencyCode isnt retailerPrice.value.currencyCode
           console.error "SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
@@ -222,13 +207,13 @@ class PriceSync extends CommonUpdater
       actions.push liveAction
 
     action = syncAmountOrCreate(@_salesPrice(retailerPrices, retailerCustomerGroupId), @_salesPrice(masterPrices, masterCustomerGroupId), CUSTOMER_GROUP_SALE)
+
     if action
       #actions.push action
       liveAction = _.clone action
       liveAction.staged = false
       actions.push liveAction
 
-    console.error "ACTIONS %j", actions
     actions
 
   _normalPrice: (prices) ->
@@ -238,5 +223,5 @@ class PriceSync extends CommonUpdater
   _salesPrice: (prices, customerGroupId) ->
     _.find prices, (p) ->
       _.has(p, 'customerGroup') and p.customerGroup.id is customerGroupId
-      
+
 module.exports = PriceSync

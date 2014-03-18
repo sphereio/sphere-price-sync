@@ -5,6 +5,10 @@ PriceSync = require '../lib/pricesync'
 
 argv = require('optimist')
   .usage('Usage: $0 --projectKey key --clientId id --clientSecret secret --logDir dir --logLevel level --timeout timeout')
+  .describe('projectKey', 'Sphere.io project key (required if you use sphere-specific value transformers).')
+  .describe('clientId', 'Sphere.io HTTP API client id (required if you use sphere-specific value transformers).')
+  .describe('clientSecret', 'Sphere.io HTTP API client secret (required if you use sphere-specific value transformers).')
+  .describe('sphereHost', 'Sphere.io host.')
   .default('logLevel', 'info')
   .default('logDir', '.')
   .default('timeout', 60000)
@@ -28,6 +32,8 @@ options =
     project_key: argv.projectKey
     client_id: argv.clientId
     client_secret: argv.clientSecret
+
+options.baseConfig.host = argv.sphereHost if argv.sphereHost?
 
 updater = new PriceSync options
 updater.run()

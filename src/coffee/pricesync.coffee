@@ -133,7 +133,7 @@ class PriceSync extends CommonUpdater
             variants = [product.masterVariant].concat(product.variants)
             match = _.find variants, (v) ->
               v.sku is masterSku
-            if match
+            if match?
               data =
                 productId: product.id
                 productVersion: product.version
@@ -183,7 +183,7 @@ class PriceSync extends CommonUpdater
         price.channel =
           typeId: 'channel'
           id: channelId
-        # If the price has a customerGroup set, we have to update the id with the one from master
+        # when the price has a customerGroup set, we have to update the id with the one from master
         if _.has price, 'customerGroup'
           price.customerGroup.id = masterCustomerGroupId
 
@@ -200,7 +200,7 @@ class PriceSync extends CommonUpdater
         console.error "SKU #{variantInMaster.sku}: There are NO #{priceType} prices at all."
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
-    if action
+    if action?
       #actions.push action
       liveAction = _.clone action
       liveAction.staged = false
@@ -208,7 +208,7 @@ class PriceSync extends CommonUpdater
 
     action = syncAmountOrCreate(@_salesPrice(retailerPrices, retailerCustomerGroupId), @_salesPrice(masterPrices, masterCustomerGroupId), CUSTOMER_GROUP_SALE)
 
-    if action
+    if action?
       #actions.push action
       liveAction = _.clone action
       liveAction.staged = false

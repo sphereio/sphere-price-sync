@@ -35,6 +35,6 @@ updater.run()
   logger.info message: msg
   process.exit 0
 .fail (msg) ->
-  logger.error error: error
+  logger.error error: msg
   process.exit 1
 .done()

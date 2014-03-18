@@ -54,7 +54,7 @@ describe 'PriceSync', ->
           currencyCode: 'EUR'
           centAmount: 9999
       updates = @priceSync._updatePrices [retailerPrice], [], 'retailerA', { id: 3, sku: 's3' }
-      expect(_.size updates).toBe 2
+      expect(_.size updates).toBe 1
       expectedAction =
         action: 'addPrice'
         variantId: 3
@@ -65,9 +65,8 @@ describe 'PriceSync', ->
           channel:
             typeId: 'channel'
             id: 'retailerA'
+        staged: false
       expect(updates[0]).toEqual expectedAction
-      expectedAction.staged = false
-      expect(updates[1]).toEqual expectedAction
 
     it 'should do nothing on wrong currencyCodes', ->
       retailerPrice =
@@ -97,7 +96,7 @@ describe 'PriceSync', ->
           typeId: 'channel'
           id: 'retailerB'
       updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'retailerB', { id: 7, sku: 's7' }
-      expect(_.size updates).toBe 2
+      expect(_.size updates).toBe 1
       expectedAction =
         action: 'changePrice'
         variantId: 7
@@ -108,9 +107,9 @@ describe 'PriceSync', ->
           channel:
             typeId: 'channel'
             id: 'retailerB'
+        staged: false
       expect(updates[0]).toEqual expectedAction
-      expectedAction.staged = false
-      expect(updates[1]).toEqual expectedAction
+
 
     it 'should add a special price', ->
       retailerPrice =
@@ -121,7 +120,7 @@ describe 'PriceSync', ->
           typeId: 'customer-group'
           id: 'cgR'
       updates = @priceSync._updatePrices [retailerPrice], [], 'retailerA', { id: 3, sku: 's3' }, 'cgR', 'cgM'
-      expect(_.size updates).toBe 2
+      expect(_.size updates).toBe 1
       expectedAction =
         action: 'addPrice'
         variantId: 3
@@ -135,9 +134,8 @@ describe 'PriceSync', ->
           customerGroup:
             typeId: 'customer-group'
             id: 'cgM'
+        staged: false
       expect(updates[0]).toEqual expectedAction
-      expectedAction.staged = false
-      expect(updates[1]).toEqual expectedAction
 
     it 'should change a special price', ->
       retailerPrice =
@@ -159,7 +157,7 @@ describe 'PriceSync', ->
           id: 'cgMaster'
 
       updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'retailerB', { id: 7, sku: 's7' }, 'cgRetailer', 'cgMaster'
-      expect(_.size updates).toBe 2
+      expect(_.size updates).toBe 1
       expectedAction =
         action: 'changePrice'
         variantId: 7
@@ -173,9 +171,8 @@ describe 'PriceSync', ->
           customerGroup:
             typeId: 'customer-group'
             id: 'cgMaster'
+        staged: false
       expect(updates[0]).toEqual expectedAction
-      expectedAction.staged = false
-      expect(updates[1]).toEqual expectedAction
 
     it 'should remove a special price', ->
       masterPrice =
@@ -190,7 +187,7 @@ describe 'PriceSync', ->
           id: 'cgMaster'
 
       updates = @priceSync._updatePrices [], [masterPrice], 'retailerB', { id: 3, sku: 's7' }, 'cgRetailer', 'cgMaster'
-      expect(_.size updates).toBe 2
+      expect(_.size updates).toBe 1
       expectedAction =
         action: 'removePrice'
         variantId: 3
@@ -204,6 +201,5 @@ describe 'PriceSync', ->
           customerGroup:
             typeId: 'customer-group'
             id: 'cgMaster'
+        staged: false
       expect(updates[0]).toEqual expectedAction
-      expectedAction.staged = false
-      expect(updates[1]).toEqual expectedAction

@@ -44,7 +44,7 @@ options.baseConfig.host = argv.sphereHost if argv.sphereHost?
 updater = new PriceSync options
 updater.run()
 .then (msg) ->
-  logger.info message: msg
+  logger.info info: msg
   process.exit 0
 .fail (msg) ->
   logger.error error: msg

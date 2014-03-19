@@ -5,6 +5,11 @@ SphereClient = require 'sphere-node-client'
 TaskQueue = require './taskqueue'
 Q = require 'q'
 
+class DataIssue
+
+  constructor: (msg) ->
+    @msg = msg
+
 class PriceSync extends CommonUpdater
 
   CHANNEL_ROLES = ['InventorySupply', 'OrderExport', 'OrderImport']
@@ -37,7 +42,7 @@ class PriceSync extends CommonUpdater
       @getCustomerGroup(@masterClient, CUSTOMER_GROUP_SALE)
       @getCustomerGroup(@retailerClient, CUSTOMER_GROUP_SALE)
     ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup) =>
-      @getPublishedProducts @retailerClient, ((page, count) -> console.error "Page #{page} processed - #{count} price update(s) done."), (retailerProduct) =>
+      @getPublishedProducts @retailerClient, ((page, count) => @_logInfo "Page #{page} processed - #{count} price update(s) done."), (retailerProduct) =>
         current = retailerProduct.masterData.current
         current.variants or= []
         variants = [current.masterVariant].concat(current.variants)
@@ -54,7 +59,10 @@ class PriceSync extends CommonUpdater
     .then (variantDataInMaster) =>
       @syncVariantPrices(variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
     .fail (msg) =>
-      console.warn msg
+      if msg instanceof DataIssue
+        @_logWarn msg.msg
+      else
+        @_logError msg
       Q({ updates: 0 })
 
   syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
@@ -118,19 +126,19 @@ class PriceSync extends CommonUpdater
   getPublishedVariantByMasterSku: (client, variant) ->
     deferred = Q.defer()
     variant.attributes or= []
-    attribute = _.find variant.attributes, (attribute) ->
+    attribute = _.find variant.attributes, (attribute) =>
       attribute.name is 'mastersku'
     unless attribute
-      deferred.reject new Error("No mastersku attribute!")
+      deferred.reject new DataIssue("No mastersku attribute!")
     else
       masterSku = attribute.value
       unless masterSku
-        deferred.reject new Error('No mastersku set!')
+        deferred.reject new DataIssue('No mastersku set!')
       else
         query = encodeURIComponent "masterVariant(sku = \"#{masterSku}\") or variants(sku = \"#{masterSku}\")"
         client._rest.GET "/product-projections?where=#{query}", (error, response, body) ->
           if body.total isnt 1
-            deferred.reject new Error("There is no published product in master for sku '#{masterSku}'.")
+            deferred.reject new DataIssue("There is no published product in master for sku '#{masterSku}'.")
           else
             product = body.results[0]
             variants = [product.masterVariant].concat(product.variants)
@@ -166,10 +174,10 @@ class PriceSync extends CommonUpdater
 
   _updatePrices: (retailerPrices, masterPrices, channelId, variantInMaster, retailerCustomerGroupId, masterCustomerGroupId) ->
     actions = []
-    syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') ->
+    syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') =>
       if masterPrice? and retailerPrice?
         if masterPrice.value.currencyCode isnt retailerPrice.value.currencyCode
-          console.error "SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
+          @_logError "SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
         else
           if masterPrice.value.centAmount isnt retailerPrice.value.centAmount
             # Update the price's amount
@@ -200,7 +208,7 @@ class PriceSync extends CommonUpdater
           variantId: variantInMaster.id
           price: masterPrice
       else if priceType isnt CUSTOMER_GROUP_SALE
-        console.error "SKU #{variantInMaster.sku}: There are NO #{priceType} prices at all."
+        @_logWarn "SKU #{variantInMaster.sku}: There are NO normal prices at all."
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
     if action?
@@ -226,5 +234,18 @@ class PriceSync extends CommonUpdater
   _salesPrice: (prices, customerGroupId) ->
     _.find prices, (p) ->
       _.has(p, 'customerGroup') and p.customerGroup.id is customerGroupId
+
+  _logError: (msg) ->
+    if @logger?
+      @logger.error error: msg
+
+  _logWarn: (msg) ->
+    if @logger?
+      @logger.warn warn: msg
+
+
+  _logInfo: (msg) ->
+    if @logger?
+      @logger.info info: msg
 
 module.exports = PriceSync

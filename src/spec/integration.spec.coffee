@@ -1,6 +1,7 @@
 _ = require('underscore')._
 Config = require '../config'
 PriceSync = require '../lib/pricesync'
+Logger = require '../lib/logger'
 Q = require 'q'
 
 # Increase timeout
@@ -8,9 +9,16 @@ jasmine.getEnv().defaultTimeoutInterval = 20000
 
 describe '#run', ->
   beforeEach (done) ->
+
+    logger = new Logger
+      streams: [
+        { level: 'warn', stream: process.stderr }
+      ]
+
     options =
       baseConfig:
-        logConfig: {}
+        logConfig:
+          logger: logger
       master:
         project_key: Config.config.project_key
         client_id: Config.config.client_id

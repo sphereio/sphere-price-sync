@@ -79,8 +79,7 @@ class PriceSync extends CommonUpdater
         actions: actions
 
       @masterClient.products.byId(variantDataInMaster.productId).save(data)
-      .then (result) ->
-        console.error "PriceSync %j", result
+      .then ->
         Q({ updates: _.size(actions) })
 
   getPublishedProducts: (client, pageProcessedCb, processFn) ->

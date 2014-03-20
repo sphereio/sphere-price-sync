@@ -138,7 +138,7 @@ class PriceSync extends CommonUpdater
         query = encodeURIComponent "masterVariant(sku = \"#{masterSku}\") or variants(sku = \"#{masterSku}\")"
         client._rest.GET "/product-projections?where=#{query}", (error, response, body) ->
           if body.total isnt 1
-            deferred.reject new DataIssue("There is no published product in master for sku '#{masterSku}'.")
+            deferred.reject new DataIssue("There are #{body.total} published products in master for sku '#{masterSku}'.")
           else
             product = body.results[0]
             variants = [product.masterVariant].concat(product.variants)

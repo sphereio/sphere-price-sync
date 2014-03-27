@@ -54,6 +54,6 @@ credentialsConfig = ProjectCredentialsConfig.create()
     process.exit 0
 
 .fail (err) ->
-  logger.error error: msg, msg
+  logger.error error: err, err
   process.exit 2
 .done()

@@ -9,4 +9,4 @@ exports.config = {
 }
 EOF
 
-echo "${SPHERE_CLIENT_ID}:${SPHERE_CLIENT_SECRET}:${SPHERE_PROJECT_KEY}" > ".sphere-credentials"
+echo "${SPHERE_PROJECT_KEY}:${SPHERE_CLIENT_ID}:${SPHERE_CLIENT_SECRET}" > ".sphere-credentials"

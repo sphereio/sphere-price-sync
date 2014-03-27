@@ -1,5 +1,5 @@
 Q = require 'q'
-_ = require('underscore')._
+_ = require 'underscore'
 
 class TaskQueue
   constructor: ->
@@ -9,14 +9,16 @@ class TaskQueue
   addTask: (taskFun) ->
     d = Q.defer()
 
-    @_queue.push {taskFun: taskFun, defer: d}
+    @_queue.push
+      taskFun: taskFun
+      defer: d
     @_maybeExecute()
 
     d.promise
 
   _maybeExecute: ->
     if not @_active and @_queue.length > 0
-      @_startTasks @_queue.pop()
+      @_startTasks @_queue.shift()
 
   _startTasks: (task) ->
     @_active = true

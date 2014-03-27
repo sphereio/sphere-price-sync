@@ -1,5 +1,6 @@
-{Logger} = require 'sphere-node-connect'
+{Logger} = require 'sphere-node-utils'
+package_json = require '../package.json'
 
 module.exports = class extends Logger
 
-  @appName: 'sphere-price-sync'
+  @appName: package_json.name

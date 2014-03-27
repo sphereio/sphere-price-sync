@@ -35,25 +35,20 @@ describe '#run', ->
     @unique = new Date().getTime()
 
     delProducts = (id, version) =>
-      deferred = Q.defer()
       data =
         actions: [
           { action: 'unpublish' }
         ]
         version: version
       @client.products.byId(id).save(data).then (result) =>
-        @rest.DELETE "/products/#{id}?version=#{result.version}", (error, response, body) ->
-          if error
-            deferred.reject error
-          else
-            if response.statusCode is 200
-              deferred.resolve body
-            else
-              deferred.reject body
-      .fail (error) ->
-        console.log error
-        done(error)
-      deferred.promise
+        @client.products.byId(id).delete(result.version)
+      .fail (err) =>
+        if err.statusCode is 400
+          # delete also already unpublished products
+          @client.products.byId(id).delete(version)
+        else
+          console.error err
+          done err
 
     @priceSync.masterClient.products.perPage(0).fetch()
     .then (products) ->

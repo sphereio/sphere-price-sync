@@ -1,4 +1,4 @@
-_ = require('underscore')._
+_ = require 'underscore'
 InventoryUpdater = require('sphere-node-sync').InventoryUpdater
 CommonUpdater = require('sphere-node-sync').CommonUpdater
 SphereClient = require 'sphere-node-client'
@@ -10,10 +10,11 @@ class DataIssue
   constructor: (msg) ->
     @msg = msg
 
-class PriceSync extends CommonUpdater
 
-  CHANNEL_ROLES = ['InventorySupply', 'OrderExport', 'OrderImport']
-  CUSTOMER_GROUP_SALE = 'specialPrice'
+CHANNEL_ROLES = ['InventorySupply', 'OrderExport', 'OrderImport']
+CUSTOMER_GROUP_SALE = 'specialPrice'
+
+class PriceSync extends CommonUpdater
 
   constructor: (options = {}) ->
     super options
@@ -32,6 +33,7 @@ class PriceSync extends CommonUpdater
     @logger = options.baseConfig.logConfig.logger
     @retailerProjectKey = options.retailer.project_key
 
+    # TODO: move to helper in sphere-node-utils
     @inventoryUpdater = new InventoryUpdater masterOpts
 
     @taskQueue = new TaskQueue()
@@ -89,7 +91,7 @@ class PriceSync extends CommonUpdater
       if total? and (page - 1) * perPage > total
         deferred.resolve acc
       else
-        client.products.page(page).perPage(perPage).sort("id").fetch()
+        client.products.page(page).perPage(perPage).sort('id').last('3h').fetch()
         .then (payload) ->
           processes = _.map payload.results, (elem) ->
             processFn(elem)
@@ -212,7 +214,6 @@ class PriceSync extends CommonUpdater
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
     if action?
-      #actions.push action
       liveAction = _.clone action
       liveAction.staged = false
       actions.push liveAction
@@ -220,7 +221,6 @@ class PriceSync extends CommonUpdater
     action = syncAmountOrCreate(@_salesPrice(retailerPrices, retailerCustomerGroupId), @_salesPrice(masterPrices, masterCustomerGroupId), CUSTOMER_GROUP_SALE)
 
     if action?
-      #actions.push action
       liveAction = _.clone action
       liveAction.staged = false
       actions.push liveAction

@@ -1,7 +1,7 @@
 {
   "name": "sphere-price-sync",
   "description": "Sync your retailer inventory to your SPHERE.IO master project",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "homepage": "https://github.com/sphereio/sphere-price-sync",
   "private": true,
   "author": {
@@ -30,24 +30,24 @@
   },
   "dependencies": {
     "optimist": "0.6.1",
-    "q": "1.0.0",
-    "sphere-node-client": "0.3.5",
-    "sphere-node-connect": "0.4.5",
-    "sphere-node-sync": "0.4.6",
+    "q": "1.0.1",
+    "sphere-node-client": "0.5.2",
+    "sphere-node-sync": "0.4.12",
+    "sphere-node-utils": "0.3.3",
     "underscore": "1.6.0"
   },
   "devDependencies": {
-    "coveralls": "~2.6.1",
-    "grunt": "~0.4.1",
-    "grunt-bump": "~0.0.11",
-    "grunt-coffeelint": "~0.0.7",
+    "coveralls": "~2.10.0",
+    "grunt": "~0.4.4",
+    "grunt-bump": "~0.0.13",
+    "grunt-coffeelint": "~0.0.8",
     "grunt-contrib-clean": "~0.5.0",
-    "grunt-contrib-coffee": "~0.8.2",
+    "grunt-contrib-coffee": "~0.10.1",
     "grunt-contrib-concat": "~0.3.0",
-    "grunt-contrib-watch": "~0.5.3",
-    "grunt-shell": "~0.6.2",
-    "istanbul": "~0.2.3",
-    "jasmine-node": "~1.13.0",
+    "grunt-contrib-watch": "~0.6.1",
+    "grunt-shell": "~0.6.4",
+    "istanbul": "~0.2.6",
+    "jasmine-node": "~1.14.2",
     "sphere-coffeelint": "git://github.com/sphereio/sphere-coffeelint.git#master"
   },
   "keywords": []

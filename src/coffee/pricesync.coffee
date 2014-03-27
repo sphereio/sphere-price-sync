@@ -128,7 +128,7 @@ class PriceSync extends CommonUpdater
   getPublishedVariantByMasterSku: (client, variant) ->
     deferred = Q.defer()
     variant.attributes or= []
-    attribute = _.find variant.attributes, (attribute) =>
+    attribute = _.find variant.attributes, (attribute) ->
       attribute.name is 'mastersku'
     unless attribute
       deferred.reject new DataIssue("No mastersku attribute!")

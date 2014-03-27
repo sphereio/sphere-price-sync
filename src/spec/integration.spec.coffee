@@ -110,7 +110,7 @@ describe '#run', ->
         ]
         version: result.version
       @client.products.byId(@masterProductId).save(data)
-    .then (result) =>
+    .then (result) ->
       console.log 6
       done()
     .fail (error) ->

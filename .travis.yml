@@ -7,6 +7,7 @@ before_script:
 script:
 - npm test
 - node lib/run --projectKey ${SPHERE_PROJECT_KEY} --clientId ${SPHERE_CLIENT_ID} --clientSecret ${SPHERE_CLIENT_SECRET}
+- node lib/run --projectKey ${SPHERE_PROJECT_KEY}
 env:
   global:
   - secure: hKwW5y/IJZp1WrgTlYtkmP7KZ8rYQGUFkvPw7j5fPDYALnrdDkkrEhX/mdjIXhnmR6Q9Ji+G9MKo9r8heNqTLMU68Fp1dBWqNbWCnRZlXHFy1qQaLzgGZiVM+gxbOhqrEMTgh5yjsC8gg0InbvfliCjdM1lD4Bt1oKuWU1MFU7c=

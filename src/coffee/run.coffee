@@ -2,6 +2,7 @@ package_json = require '../package.json'
 Config = require '../config'
 Logger = require './logger'
 PriceSync = require '../lib/pricesync'
+{ProjectCredentialsConfig} = require 'sphere-node-utils'
 
 argv = require('optimist')
   .usage('Usage: $0 --projectKey key --clientId id --clientSecret secret --logDir dir --logLevel level --timeout timeout')
@@ -15,7 +16,7 @@ argv = require('optimist')
   .default('logLevel', 'info')
   .default('logDir', '.')
   .default('timeout', 60000)
-  .demand(['projectKey','clientId', 'clientSecret'])
+  .demand(['projectKey'])
   .argv
 
 logger = new Logger
@@ -27,26 +28,32 @@ logger = new Logger
 process.on 'SIGUSR2', ->
   logger.reopenFileStreams()
 
-options =
-  baseConfig:
-    timeout: argv.timeout
-    user_agent: "#{package_json.name} - #{package_json.version}"
-    logConfig:
-      logger: logger
-  master: Config.config
-  retailer:
-    project_key: argv.projectKey
-    client_id: argv.clientId
-    client_secret: argv.clientSecret
+credentialsConfig = ProjectCredentialsConfig.create()
+.then (credentials) ->
+  options =
+    baseConfig:
+      timeout: argv.timeout
+      user_agent: "#{package_json.name} - #{package_json.version}"
+      logConfig:
+        logger: logger
+    master: credentials.enrichCredentials
+      project_key: Config.config.project_key
+      client_id: Config.config.client_id
+      client_secret: Config.config.client_secret
+    retailer: credentials.enrichCredentials
+      project_key: argv.projectKey
+      client_id: argv.clientId
+      client_secret: argv.clientSecret
 
-options.baseConfig.host = argv.sphereHost if argv.sphereHost?
+  options.baseConfig.host = argv.sphereHost if argv.sphereHost?
 
-updater = new PriceSync options
-updater.run()
-.then (msg) ->
-  logger.info info: msg, msg
-  process.exit 0
-.fail (msg) ->
+  updater = new PriceSync options
+  updater.run()
+  .then (msg) ->
+    logger.info info: msg, msg
+    process.exit 0
+
+.fail (err) ->
   logger.error error: msg, msg
-  process.exit 1
+  process.exit 2
 .done()

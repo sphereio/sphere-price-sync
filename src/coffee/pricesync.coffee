@@ -237,15 +237,14 @@ class PriceSync extends CommonUpdater
 
   _logError: (msg) ->
     if @logger?
-      @logger.error error: msg
+      @logger.error error: msg, msg
 
   _logWarn: (msg) ->
     if @logger?
-      @logger.warn warn: msg
-
+      @logger.warn warn: msg, msg
 
   _logInfo: (msg) ->
     if @logger?
-      @logger.info info: msg
+      @logger.info info: msg, msg
 
 module.exports = PriceSync

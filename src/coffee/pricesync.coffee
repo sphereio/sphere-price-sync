@@ -91,7 +91,7 @@ class PriceSync extends CommonUpdater
         deferred.resolve acc
       else
         client.products.page(page).perPage(perPage).sort('id').last('3h').fetch()
-        .then (payload) ->
+        .then (payload) =>
           processes = _.map payload.results, (elem) ->
             processFn(elem)
           if page is 1 and _.isEmpty(processes)

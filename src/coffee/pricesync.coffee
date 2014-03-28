@@ -94,12 +94,13 @@ class PriceSync extends CommonUpdater
         .then (payload) =>
           processes = _.map payload.results, (elem) ->
             processFn(elem)
+
           if page is 1 and _.isEmpty(processes)
-            deferred.reject new Error("[#{@retailerProjectKey}] There are no products to sync prices for.")
-          else
-            Q.all(processes)
-            .then (counts) ->
-              [_.reduce(counts, ((acc, count) -> acc + count), 0), payload]
+            @_logInfo "[#{@retailerProjectKey}] There are no products to sync prices for."
+
+          Q.all(processes)
+          .then (counts) ->
+            [_.reduce(counts, ((acc, count) -> acc + count), 0), payload]
         .then ([count, payload]) ->
           pageProcessedCb(page, count)
           pageProducts page + 1, perPage, payload.total, count + acc

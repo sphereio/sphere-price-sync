@@ -5,14 +5,13 @@ SphereClient = require 'sphere-node-client'
 TaskQueue = require './taskqueue'
 Q = require 'q'
 
+CHANNEL_ROLES = ['InventorySupply', 'OrderExport', 'OrderImport']
+CUSTOMER_GROUP_SALE = 'specialPrice'
+
 class DataIssue
 
   constructor: (msg) ->
     @msg = msg
-
-
-CHANNEL_ROLES = ['InventorySupply', 'OrderExport', 'OrderImport']
-CUSTOMER_GROUP_SALE = 'specialPrice'
 
 class PriceSync extends CommonUpdater
 

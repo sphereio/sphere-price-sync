@@ -101,17 +101,9 @@ describe '#run', ->
         ]
       @client.products.save(@product)
     .then (result) =>
-      console.log 5
       @masterProductId = result.id
       @masterProductVersion = result.version
-      data =
-        actions: [
-          { action: 'publish' }
-        ]
-        version: result.version
-      @client.products.byId(@masterProductId).save(data)
-    .then (result) ->
-      console.log 6
+      console.log 5
       done()
     .fail (error) ->
       console.log error
@@ -149,7 +141,7 @@ describe '#run', ->
     ]
     @client.products.save(@product)
     .then (result) =>
-      console.log 7
+      console.log 6
       data =
         actions: [
           { action: 'publish' }
@@ -158,10 +150,10 @@ describe '#run', ->
 
       @client.products.byId(result.id).save(data)
     .then (result) =>
-      console.log 7.5
+      console.log 7
       data =
         actions: [
-          { action: 'setAttribute', variantId: 1, name: 'mastersku', value: 'alksvbkl;jsdvn' }
+          { action: 'setAttribute', variantId: 1, name: 'mastersku', value: "We should want to be sure it works also for 'hasStagedChanges'." }
         ]
         version: @masterProductVersion
       @client.products.byId(@masterProductId).save(data)
@@ -172,7 +164,8 @@ describe '#run', ->
       console.log "SYNC RESULT", msg
 
       @client.products.byId(@masterProductId).fetch()
-    .then (result) ->
+    .then (result) =>
+      expect(result.masterData.current.masterVariant.sku).toBe "mastersku#{@unique}"
       expect(_.size result.masterData.current.masterVariant.prices).toBe 2
       expect(_.size result.masterData.current.variants[0].prices).toBe 2
       expect(_.size result.masterData.current.variants[1].prices).toBe 1

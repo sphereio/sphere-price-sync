@@ -56,7 +56,7 @@ class PriceSync extends CommonUpdater
           _.reduce infos, ((acc, info) -> acc + info.updates), 0
 
   _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
-    @getPublishedVariantByMasterSku(@masterClient, retailerVariant)
+    @getVariantByMasterSku(@masterClient, retailerVariant)
     .then (variantDataInMaster) =>
       @syncVariantPrices(variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
     .fail (msg) =>
@@ -90,7 +90,7 @@ class PriceSync extends CommonUpdater
       if total? and (page - 1) * perPage > total
         deferred.resolve acc
       else
-        client.products.page(page).perPage(perPage).sort('id').last('12h').fetch()
+        client.products.page(page).perPage(perPage).sort('id').last('12h').where("masterData(published=\"true\")").fetch()
         .then (payload) =>
           processes = _.map payload.results, (elem) ->
             processFn(elem)
@@ -125,7 +125,7 @@ class PriceSync extends CommonUpdater
 
     deferred.promise
 
-  getPublishedVariantByMasterSku: (client, variant) ->
+  getVariantByMasterSku: (client, variant, staged = true) ->
     deferred = Q.defer()
     variant.attributes or= []
     attribute = _.find variant.attributes, (attribute) ->
@@ -138,7 +138,7 @@ class PriceSync extends CommonUpdater
         deferred.reject new DataIssue("[#{@retailerProjectKey}] No mastersku set!")
       else
         query = encodeURIComponent "masterVariant(sku = \"#{masterSku}\") or variants(sku = \"#{masterSku}\")"
-        client._rest.GET "/product-projections?where=#{query}", (error, response, body) =>
+        client._rest.GET "/product-projections?staged=#{staged}&where=#{query}", (error, response, body) =>
           if body.total isnt 1
             deferred.reject new DataIssue("[#{@retailerProjectKey}] There are #{body.total} published products in master for sku '#{masterSku}'.")
           else

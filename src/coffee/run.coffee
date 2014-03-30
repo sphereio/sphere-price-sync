@@ -9,13 +9,15 @@ argv = require('optimist')
   .describe('projectKey', 'your SPHERE.IO project-key')
   .describe('clientId', 'your SPHERE.IO OAuth client id')
   .describe('clientSecret', 'your SPHERE.IO OAuth client secret')
+  .describe('fetchHours', 'how many hours of modification should be fetched')
   .describe('timeout', 'timeout for requests')
   .describe('sphereHost', 'SPHERE.IO API host to connecto to')
   .describe('logLevel', 'log level for file logging')
   .describe('logDir', 'directory to store logs')
+  .default('fetchHours', 24)
+  .default('timeout', 60000)
   .default('logLevel', 'info')
   .default('logDir', '.')
-  .default('timeout', 60000)
   .demand(['projectKey'])
   .argv
 
@@ -32,6 +34,7 @@ credentialsConfig = ProjectCredentialsConfig.create()
 .then (credentials) ->
   options =
     baseConfig:
+      fetchHours: argv.fetchHours
       timeout: argv.timeout
       user_agent: "#{package_json.name} - #{package_json.version}"
       logConfig:

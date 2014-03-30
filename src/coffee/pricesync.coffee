@@ -32,6 +32,8 @@ class PriceSync extends CommonUpdater
     @logger = options.baseConfig.logConfig.logger
     @retailerProjectKey = options.retailer.project_key
 
+    @fetchHours = options.baseConfig.fetchHours or 24
+
     # TODO: move to helper in sphere-node-utils
     @inventoryUpdater = new InventoryUpdater masterOpts
 
@@ -90,7 +92,7 @@ class PriceSync extends CommonUpdater
       if total? and (page - 1) * perPage > total
         deferred.resolve acc
       else
-        client.products.page(page).perPage(perPage).sort('id').last('12h').where("masterData(published=\"true\")").fetch()
+        client.products.page(page).perPage(perPage).sort('id').last("#{@fetchHours}h").where("masterData(published=\"true\")").fetch()
         .then (payload) =>
           processes = _.map payload.results, (elem) ->
             processFn(elem)

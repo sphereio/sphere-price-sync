@@ -49,7 +49,6 @@ class PriceSync extends CommonUpdater
         current = retailerProduct.masterData.current
         current.variants or= []
         variants = [current.masterVariant].concat(current.variants)
-        stagedVariants = [retailerProduct.masterData.staged.masterVariant].concat(retailerProduct.masterData.staged.variants)
 
         v = _.map variants, (retailerVariant) =>
           @taskQueue.addTask _.bind(@_processVariant, this, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)

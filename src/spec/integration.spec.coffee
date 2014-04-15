@@ -14,8 +14,30 @@ updateUnpublish = (version) ->
     {action: 'unpublish'}
   ]
 
-# Increase timeout
-jasmine.getEnv().defaultTimeoutInterval = 20000
+cleanup = (client, logger) ->
+  logger.debug 'Unpublishing all products'
+  client.products.sort('id').where('masterData(published = "true")').process (payload) ->
+    Q.all _.map payload.body.results, (product) ->
+      client.products.byId(product.id).update(updateUnpublish(product.version))
+  .then (results) ->
+    logger.info "Unpublished #{results.length} products"
+    logger.debug 'About to delete all products'
+    client.products.perPage(0).fetch()
+  .then (payload) ->
+    logger.debug "Deleting #{payload.body.total} products"
+    Q.all _.map payload.body.results, (product) ->
+      client.products.byId(product.id).delete(product.version)
+  .then (results) ->
+    logger.info "Deleted #{results.length} products"
+    logger.debug 'About to delete all product types'
+    client.productTypes.perPage(0).fetch()
+  .then (payload) ->
+    logger.debug "Deleting #{payload.body.total} product types"
+    Q.all _.map payload.body.results, (productType) ->
+      client.productTypes.byId(productType.id).delete(productType.version)
+  .then (results) ->
+    logger.debug "Deleted #{results.length} product types"
+    Q()
 
 describe '#run', ->
   beforeEach (done) ->
@@ -41,20 +63,8 @@ describe '#run', ->
     @priceSync = new PriceSync options
     @client = @priceSync.masterClient
 
-    @logger.info 'Unpublishing all products'
-    @client.products.sort('id').where('masterData(published = "true")').process (payload) =>
-      Q.all _.map payload.body.results, (product) =>
-        @client.products.byId(product.id).update(updateUnpublish(product.version))
-    .then (results) =>
-      @logger.info "Unpublished #{results.length} products"
-      @logger.info 'About to delete all products'
-      @client.products.perPage(0).fetch()
-    .then (payload) =>
-      @logger.info "Deleting #{payload.body.total} products"
-      Q.all _.map payload.body.results, (product) =>
-        @client.products.byId(product.id).delete(product.version)
+    cleanup(@client, @logger)
     .then =>
-      @logger.info 'All products deleted'
       @client.customerGroups.where('name = \"specialPrice\"').fetch()
       .then (result) =>
         if _.size(result.body.results) is 1
@@ -63,11 +73,11 @@ describe '#run', ->
           @logger.info "No customerGroup 'specialPrice' found. Creating a new one"
           @client.customerGroups.save(groupName: 'specialPrice')
     .then (customerGroup) =>
-      @logger.info 'Fetched customGroup "specialPrice"'
+      @logger.debug 'Fetched customGroup "specialPrice"'
       @customerGroupId = customerGroup.body.id
       @client.channels.where("key = \"#{Config.config.project_key}\"").fetch()
     .then (channels) =>
-      @logger.info "Fetched #{channels.body.total} channels"
+      @logger.debug "Fetched #{channels.body.total} channels"
       @channelId = _.first(channels.body.results).id
       productType =
         name: uniqueId 'PT'
@@ -83,7 +93,7 @@ describe '#run', ->
         }]
       @client.productTypes.save(productType)
     .then (result) =>
-      @logger.info 'ProductType created'
+      @logger.debug 'ProductType created'
       @productType = result.body
       @product =
         productType:
@@ -108,18 +118,28 @@ describe '#run', ->
         ]
       @client.products.save(@product)
     .then (result) =>
-      @logger.info 'Product created'
+      @logger.debug 'Product created'
       @masterProductId = result.body.id
       @masterProductVersion = result.body.version
       done()
     .fail (error) -> done _.prettify error
     .done()
+  , 20000 # 20sec
 
-  xit 'do nothing', (done) ->
+  afterEach (done) ->
+    cleanup(@client, @logger)
+    .then -> done()
+    .fail (error) -> done(_.prettify(error))
+  , 30000 # 30sec
+
+  it 'do nothing', (done) ->
     @priceSync.run()
     .then (msg) ->
-      expect(msg).toBe 'Nothing to do.'
+      expect(msg).toBe "[#{Config.config.project_key}] There are no products to sync prices for."
       done()
+    .fail (error) -> done _.prettify error
+    .done()
+
 
   # workflow
   # - create a product for the retailer with the mastersku attribute
@@ -164,7 +184,7 @@ describe '#run', ->
     @logger.debug fakeRetailerProduct, 'About to create a product'
     @client.products.save(fakeRetailerProduct)
     .then (result) =>
-      @logger.info 'New product created'
+      @logger.debug 'New product created'
       data =
         actions: [
           { action: 'publish' }
@@ -173,7 +193,7 @@ describe '#run', ->
 
       @client.products.byId(result.body.id).update(data)
     .then (result) =>
-      @logger.info 'Product published'
+      @logger.debug 'Product published'
       data =
         actions: [
           { action: 'setAttribute', variantId: 1, name: 'mastersku', value: "We want to be sure it works also for 'hasStagedChanges'." }
@@ -181,13 +201,13 @@ describe '#run', ->
         version: @masterProductVersion
       @client.products.byId(@masterProductId).update(data)
     .then (result) =>
-      @logger.info 'Product updated (mastersku)'
+      @logger.debug 'Product updated (mastersku)'
       @priceSync.run()
     .then (msg) =>
-      @logger.info msg, "SYNC RESULT"
+      @logger.debug msg, "SYNC RESULT"
       @client.products.byId(@masterProductId).fetch()
     .then (result) =>
-      @logger.info 'Master product fetched'
+      @logger.debug 'Master product fetched'
       product = result.body
       expect(product.masterData.current.masterVariant.sku).toBe @product.masterVariant.sku
       expect(_.size product.masterData.current.masterVariant.prices).toBe 2

@@ -42,6 +42,7 @@ class PriceSync
       .perPage(1) # one product at a time
       .process (retailerProduct) =>
         @logger.debug retailerProduct, 'Processing retailer product'
+        return Q() if retailerProduct.body.total is 0
         @logger.info "Processing product #{retailerProduct.body.results[0].id}"
         current = retailerProduct.body.results[0].masterData.current
         current.variants or= []
@@ -49,10 +50,12 @@ class PriceSync
 
         Qutils.processList variants, (retailerVariant) =>
           @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster.body
-        .then (infos) -> _.reduce infos, ((acc, info) -> acc + info.updates), 0
+        .then (infos) -> # TODO: processList doesn't accumulate results yet
+          _.reduce infos, ((acc, info) -> acc + info.updates), 0
     .then (results) =>
-      if _.isEmpty results
-        @logger.info "[#{@retailerProjectKey}] There are no products to sync prices for."
+      if _.isEmpty _.compact(results)
+        summary = "[#{@retailerProjectKey}] There are no products to sync prices for."
+      Q(summary)
 
   _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     @getVariantByMasterSku(retailerVariant)

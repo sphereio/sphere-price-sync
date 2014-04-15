@@ -43,7 +43,7 @@ class PriceSync
       .process (retailerProduct) =>
         @logger.debug retailerProduct, 'Processing retailer product'
         return Q() if retailerProduct.body.total is 0
-        @logger.info "Processing product #{retailerProduct.body.results[0].id}"
+        @logger.debug "Processing product #{retailerProduct.body.results[0].id}"
         current = retailerProduct.body.results[0].masterData.current
         current.variants or= []
         variants = [current.masterVariant].concat(current.variants)
@@ -93,7 +93,7 @@ class PriceSync
         Q.reject new Error("[#{@retailerProjectKey}] Can not find cutomer group '#{name}'.")
 
   getVariantByMasterSku: (variant, staged = true) ->
-    @logger.info "Processing variant #{variant.id} (sku: #{variant.sku})"
+    @logger.debug "Processing variant #{variant.id} (sku: #{variant.sku})"
     variant.attributes or= []
     attribute = _.find variant.attributes, (attribute) -> attribute.name is 'mastersku'
     if attribute

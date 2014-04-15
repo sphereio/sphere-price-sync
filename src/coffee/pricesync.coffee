@@ -1,6 +1,7 @@
 _ = require 'underscore'
 Q = require 'q'
 SphereClient = require 'sphere-node-client'
+{Qutils} = require 'sphere-node-utils'
 
 CHANNEL_ROLES = ['InventorySupply', 'OrderExport', 'OrderImport']
 CUSTOMER_GROUP_SALE = 'specialPrice'
@@ -38,30 +39,20 @@ class PriceSync
       .sort('id')
       .last("#{@fetchHours}h")
       .where("masterData(published=\"true\")")
+      .perPage(1) # one product at a time
       .process (retailerProduct) =>
-        current = retailerProduct.masterData.current
+        @logger.debug retailerProduct, 'Processing retailer product'
+        @logger.info "Processing product #{retailerProduct.body.results[0].id}"
+        current = retailerProduct.body.results[0].masterData.current
         current.variants or= []
         variants = [current.masterVariant].concat(current.variants)
 
-        Q.all _.map variants, (retailerVariant) =>
-          @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster
+        Qutils.processList variants, (retailerVariant) =>
+          @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster.body
         .then (infos) -> _.reduce infos, ((acc, info) -> acc + info.updates), 0
     .then (results) =>
       if _.isEmpty results
         @logger.info "[#{@retailerProjectKey}] There are no products to sync prices for."
-
-      # @getPublishedProducts @retailerClient, ((page, count) =>
-      #   @_logInfo "[#{@retailerProjectKey}] Page #{page} processed - #{count} price update(s) done."
-      # ), (retailerProduct) =>
-      #   current = retailerProduct.masterData.current
-      #   current.variants or= []
-      #   variants = [current.masterVariant].concat(current.variants)
-
-      #   v = _.map variants, (retailerVariant) =>
-      #     @taskQueue.addTask _.bind(@_processVariant, this, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
-      #   Q.all(v)
-      #   .then (infos) ->
-      #     _.reduce infos, ((acc, info) -> acc + info.updates), 0
 
   _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     @getVariantByMasterSku(retailerVariant)
@@ -86,46 +77,20 @@ class PriceSync
         variantId: variantDataInMaster.productId
         actions: actions
 
-      @masterClient.products.byId(variantDataInMaster.productId).save(data)
+      @logger.debug data, "About to update product #{variantDataInMaster.productId} in master"
+      @masterClient.products.byId(variantDataInMaster.productId).update(data)
       .then -> Q({ updates: _.size(actions) })
-
-  # getPublishedProducts: (client, pageProcessedCb, processFn) ->
-  #   deferred = Q.defer()
-
-  #   pageProducts = (page = 1, perPage = 50, total, acc = 0) =>
-  #     if total? and (page - 1) * perPage > total
-  #       deferred.resolve acc
-  #     else
-  #       client.products.page(page).perPage(perPage).sort('id').last("#{@fetchHours}h").where("masterData(published=\"true\")").fetch()
-  #       .then (payload) =>
-  #         processes = _.map payload.results, (elem) ->
-  #           processFn(elem)
-
-  #         if page is 1 and _.isEmpty(processes)
-  #           @_logInfo "[#{@retailerProjectKey}] There are no products to sync prices for."
-
-  #         Q.all(processes)
-  #         .then (counts) ->
-  #           [_.reduce(counts, ((acc, count) -> acc + count), 0), payload]
-  #       .then ([count, payload]) ->
-  #         pageProcessedCb(page, count)
-  #         pageProducts page + 1, perPage, payload.total, count + acc
-  #       .fail (error) ->
-  #         deferred.reject error
-  #       .done()
-
-  #   pageProducts()
-  #   deferred.promise
 
   getCustomerGroup: (client, name) ->
     client.customerGroups.where("name=\"#{name}\"").fetch()
     .then (result) =>
-      if _.size(result.results) is 1
-        Q result.results[0]
+      if _.size(result.body.results) is 1
+        Q result.body.results[0]
       else
         Q.reject new Error("[#{@retailerProjectKey}] Can not find cutomer group '#{name}'.")
 
-  getVariantByMasterSku: ( variant, staged = true) ->
+  getVariantByMasterSku: (variant, staged = true) ->
+    @logger.info "Processing variant #{variant.id} (sku: #{variant.sku})"
     variant.attributes or= []
     attribute = _.find variant.attributes, (attribute) -> attribute.name is 'mastersku'
     if attribute
@@ -149,6 +114,7 @@ class PriceSync
                 productId: product.id
                 productVersion: product.version
                 variant: match
+              @logger.debug data, 'Matched data'
               Q data
             else
               Q.reject new Error("[#{@retailerProjectKey}] Can't find matching variant")

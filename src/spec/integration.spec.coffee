@@ -1,8 +1,18 @@
-_ = require('underscore')._
-Config = require '../config'
-PriceSync = require '../lib/pricesync'
-Logger = require '../lib/logger'
+_ = require 'underscore'
+_.mixin require('sphere-node-utils')._u
 Q = require 'q'
+Config = require '../config'
+Logger = require '../lib/logger'
+PriceSync = require '../lib/pricesync'
+
+uniqueId = (prefix) ->
+  _.uniqueId "#{prefix}#{new Date().getTime()}_"
+
+updateUnpublish = (version) ->
+  version: version
+  actions: [
+    {action: 'unpublish'}
+  ]
 
 # Increase timeout
 jasmine.getEnv().defaultTimeoutInterval = 20000
@@ -10,15 +20,15 @@ jasmine.getEnv().defaultTimeoutInterval = 20000
 describe '#run', ->
   beforeEach (done) ->
 
-    logger = new Logger
+    @logger = new Logger
       streams: [
-        { level: 'warn', stream: process.stderr }
+        { level: 'info', stream: process.stdout }
       ]
 
     options =
       baseConfig:
         logConfig:
-          logger: logger
+          logger: @logger
       master:
         project_key: Config.config.project_key
         client_id: Config.config.client_id
@@ -30,44 +40,37 @@ describe '#run', ->
 
     @priceSync = new PriceSync options
     @client = @priceSync.masterClient
-    @rest = @priceSync.masterClient._rest
 
-    @unique = new Date().getTime()
-
-    delProducts = (id, version) =>
-      data =
-        actions: [
-          { action: 'unpublish' }
-        ]
-        version: version
-      @client.products.byId(id).save(data).then (result) =>
-        @client.products.byId(id).delete(result.version)
-      .fail (err) =>
-        if err.statusCode is 400
-          # delete also already unpublished products
-          @client.products.byId(id).delete(version)
-        else
-          console.error err
-          done err
-
-    @priceSync.masterClient.products.perPage(0).fetch()
-    .then (products) ->
-      console.log 0
-      deletions = _.map products.results, (product) ->
-        delProducts product.id, product.version
-      Q.all(deletions)
+    @logger.info 'Unpublishing all products'
+    @client.products.sort('id').where('masterData(published = "true")').process (payload) =>
+      Q.all _.map payload.body.results, (product) =>
+        @client.products.byId(product.id).update(updateUnpublish(product.version))
+    .then (results) =>
+      @logger.info "Unpublished #{results.length} products"
+      @logger.info 'About to delete all products'
+      @client.products.perPage(0).fetch()
+    .then (payload) =>
+      @logger.info "Deleting #{payload.body.total} products"
+      Q.all _.map payload.body.results, (product) =>
+        @client.products.byId(product.id).delete(product.version)
     .then =>
-      console.log 1
-      @priceSync.getCustomerGroup(@client, 'specialPrice')
-    .then (result) =>
-      console.log 2
-      @customerGroupId = result.id
+      @logger.info 'All products deleted'
+      @client.customerGroups.where('name = \"specialPrice\"').fetch()
+      .then (result) =>
+        if _.size(result.body.results) is 1
+          Q body: result.body.results[0]
+        else
+          @logger.info "No customerGroup 'specialPrice' found. Creating a new one"
+          @client.customerGroups.save(groupName: 'specialPrice')
+    .then (customerGroup) =>
+      @logger.info 'Fetched customGroup "specialPrice"'
+      @customerGroupId = customerGroup.body.id
       @client.channels.where("key = \"#{Config.config.project_key}\"").fetch()
-    .then (result) =>
-      console.log 3
-      @channelId = result.results[0].id
+    .then (channels) =>
+      @logger.info "Fetched #{channels.body.total} channels"
+      @channelId = _.first(channels.body.results).id
       productType =
-        name: "PT-#{@unique}"
+        name: uniqueId 'PT'
         description: 'bla'
         attributes: [{
           name: 'mastersku'
@@ -80,34 +83,36 @@ describe '#run', ->
         }]
       @client.productTypes.save(productType)
     .then (result) =>
-      console.log 4
-      @productType = result
+      @logger.info 'ProductType created'
+      @productType = result.body
       @product =
         productType:
           typeId: 'product-type'
           id: @productType.id
         name:
-          en: "P-#{@unique}"
+          en: uniqueId 'P'
         slug:
-          en: "p-#{@unique}"
+          en: uniqueId 'p'
         masterVariant:
-          sku: "mastersku#{@unique}"
+          sku: uniqueId 'mastersku1-'
         variants: [
-          { sku: "masterSKU2-#{@unique}", attributes: [ { name: 'mastersku', value: 'We add some content here in order to create the variant' } ] }
-          { sku: "MasterSku3/#{@unique}", prices: [
-            { value: { currencyCode: 'EUR', centAmount: 99 }, channel: { typeId: 'channel', id: @channelId } }
-            { value: { currencyCode: 'EUR', centAmount: 66 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' }, channel: { typeId: 'channel', id: @channelId } }
-          ], attributes: [ { name: 'mastersku', value: 'We add some content here in order to create another variant' } ] }
+          { sku: uniqueId('mastersku2-'), attributes: [ { name: 'mastersku', value: 'We add some content here in order to create the variant' } ] }
+          {
+            sku: uniqueId('mastersku3-')
+            prices: [
+              { value: { currencyCode: 'EUR', centAmount: 99 }, channel: { typeId: 'channel', id: @channelId } }
+              { value: { currencyCode: 'EUR', centAmount: 66 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' }, channel: { typeId: 'channel', id: @channelId } }
+            ]
+            attributes: [ { name: 'mastersku', value: 'We add some content here in order to create another variant' } ]
+          }
         ]
       @client.products.save(@product)
     .then (result) =>
-      @masterProductId = result.id
-      @masterProductVersion = result.version
-      console.log 5
+      @logger.info 'Product created'
+      @masterProductId = result.body.id
+      @masterProductVersion = result.body.version
       done()
-    .fail (error) ->
-      console.log error
-      done error
+    .fail (error) -> done _.prettify error
     .done()
 
   xit 'do nothing', (done) ->
@@ -121,70 +126,89 @@ describe '#run', ->
   # - run sync twice
   # - check price updates
   it 'sync prices on masterVariant and in variants', (done) ->
-    @product.slug.en = "p-#{@unique}1"
-    @product.masterVariant.sku = "retailer-#{@unique}"
-    @product.masterVariant.attributes = [
-      { name: 'mastersku', value: "mastersku#{@unique}" }
-    ]
-    @product.masterVariant.prices = [
-      { value: { currencyCode: 'EUR', centAmount: 9999 } }
-      { value: { currencyCode: 'EUR', centAmount: 8999 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' } }
-    ]
-    @product.variants = [
-      { sku: "retailer1-#{@unique}", prices: [
-        { value: { currencyCode: 'EUR', centAmount: 20000 } }
-        { value: { currencyCode: 'EUR', centAmount: 15000 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' } }
-      ], attributes: [ { name: 'mastersku', value: "masterSKU2-#{@unique}" } ] }
-      { sku: "retailer2-#{@unique}", prices: [
-        { value: { currencyCode: 'EUR', centAmount: 99 } }
-      ], attributes: [ { name: 'mastersku', value: "MasterSku3/#{@unique}" } ] }
-    ]
-    @client.products.save(@product)
+    @logger.info 'Syncing prices...'
+    fakeRetailerProduct =
+      productType:
+        typeId: 'product-type'
+        id: @productType.id
+      name:
+        en: uniqueId 'P'
+      slug:
+        en: uniqueId 'p-'
+      masterVariant:
+        sku: uniqueId 'retailer1-'
+        attributes: [
+          { name: 'mastersku', value: @product.masterVariant.sku }
+        ]
+        prices: [
+          { value: { currencyCode: 'EUR', centAmount: 9999 } }
+          { value: { currencyCode: 'EUR', centAmount: 8999 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' } }
+        ]
+      variants: [
+        {
+          sku: uniqueId 'retailer2-'
+          prices: [
+            { value: { currencyCode: 'EUR', centAmount: 20000 } }
+            { value: { currencyCode: 'EUR', centAmount: 15000 }, customerGroup: { id: @customerGroupId, typeId: 'customer-group' } }
+          ]
+          attributes: [ { name: 'mastersku', value: @product.variants[0].sku } ]
+        },
+        {
+          sku: uniqueId 'retailer3-'
+          prices: [
+            { value: { currencyCode: 'EUR', centAmount: 99 } }
+          ]
+          attributes: [ { name: 'mastersku', value: @product.variants[1].sku } ]
+        }
+      ]
+    @logger.debug fakeRetailerProduct, 'About to create a product'
+    @client.products.save(fakeRetailerProduct)
     .then (result) =>
-      console.log 6
+      @logger.info 'New product created'
       data =
         actions: [
           { action: 'publish' }
         ]
-        version: result.version
+        version: result.body.version
 
-      @client.products.byId(result.id).save(data)
+      @client.products.byId(result.body.id).update(data)
     .then (result) =>
-      console.log 7
+      @logger.info 'Product published'
       data =
         actions: [
-          { action: 'setAttribute', variantId: 1, name: 'mastersku', value: "We should want to be sure it works also for 'hasStagedChanges'." }
+          { action: 'setAttribute', variantId: 1, name: 'mastersku', value: "We want to be sure it works also for 'hasStagedChanges'." }
         ]
         version: @masterProductVersion
-      @client.products.byId(@masterProductId).save(data)
+      @client.products.byId(@masterProductId).update(data)
     .then (result) =>
-      console.log 8
+      @logger.info 'Product updated (mastersku)'
       @priceSync.run()
     .then (msg) =>
-      console.log "SYNC RESULT", msg
-
+      @logger.info msg, "SYNC RESULT"
       @client.products.byId(@masterProductId).fetch()
     .then (result) =>
-      expect(result.masterData.current.masterVariant.sku).toBe "mastersku#{@unique}"
-      expect(_.size result.masterData.current.masterVariant.prices).toBe 2
-      expect(_.size result.masterData.current.variants[0].prices).toBe 2
-      expect(_.size result.masterData.current.variants[1].prices).toBe 1
+      @logger.info 'Master product fetched'
+      product = result.body
+      expect(product.masterData.current.masterVariant.sku).toBe @product.masterVariant.sku
+      expect(_.size product.masterData.current.masterVariant.prices).toBe 2
+      expect(_.size product.masterData.current.variants[0].prices).toBe 2
+      expect(_.size product.masterData.current.variants[1].prices).toBe 1
 
-      price = result.masterData.current.masterVariant.prices[0]
+      price = product.masterData.current.masterVariant.prices[0]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 9999
       expect(price.channel.typeId).toBe 'channel'
       expect(price.channel.id).toBeDefined()
       expect(price.customerGroup).toBeUndefined()
 
-      price = result.masterData.staged.masterVariant.prices[0]
+      price = product.masterData.staged.masterVariant.prices[0]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 9999
       expect(price.channel.typeId).toBe 'channel'
       expect(price.channel.id).toBeDefined()
       expect(price.customerGroup).toBeUndefined()
 
-      price = result.masterData.current.masterVariant.prices[1]
+      price = product.masterData.current.masterVariant.prices[1]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 8999
       expect(price.channel.typeId).toBe 'channel'
@@ -192,7 +216,7 @@ describe '#run', ->
       expect(price.customerGroup.typeId).toBe 'customer-group'
       expect(price.customerGroup.id).toBeDefined()
 
-      price = result.masterData.staged.masterVariant.prices[1]
+      price = product.masterData.staged.masterVariant.prices[1]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 8999
       expect(price.channel.typeId).toBe 'channel'
@@ -200,21 +224,21 @@ describe '#run', ->
       expect(price.customerGroup.typeId).toBe 'customer-group'
       expect(price.customerGroup.id).toBeDefined()
 
-      price = result.masterData.current.variants[0].prices[0]
+      price = product.masterData.current.variants[0].prices[0]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 20000
       expect(price.channel.typeId).toBe 'channel'
       expect(price.channel.id).toBeDefined()
       expect(price.customerGroup).toBeUndefined()
 
-      price = result.masterData.staged.variants[0].prices[0]
+      price = product.masterData.staged.variants[0].prices[0]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 20000
       expect(price.channel.typeId).toBe 'channel'
       expect(price.channel.id).toBeDefined()
       expect(price.customerGroup).toBeUndefined()
 
-      price = result.masterData.current.variants[0].prices[1]
+      price = product.masterData.current.variants[0].prices[1]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 15000
       expect(price.channel.typeId).toBe 'channel'
@@ -222,7 +246,7 @@ describe '#run', ->
       expect(price.customerGroup.typeId).toBe 'customer-group'
       expect(price.customerGroup.id).toBeDefined()
 
-      price = result.masterData.staged.variants[0].prices[1]
+      price = product.masterData.staged.variants[0].prices[1]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 15000
       expect(price.channel.typeId).toBe 'channel'
@@ -230,14 +254,14 @@ describe '#run', ->
       expect(price.customerGroup.typeId).toBe 'customer-group'
       expect(price.customerGroup.id).toBeDefined()
 
-      price = result.masterData.current.variants[1].prices[0]
+      price = product.masterData.current.variants[1].prices[0]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 99
       expect(price.channel.typeId).toBe 'channel'
       expect(price.channel.id).toBeDefined()
       expect(price.customerGroup).toBeUndefined()
 
-      price = result.masterData.staged.variants[1].prices[0]
+      price = product.masterData.staged.variants[1].prices[0]
       expect(price.value.currencyCode).toBe 'EUR'
       expect(price.value.centAmount).toBe 99
       expect(price.channel.typeId).toBe 'channel'
@@ -246,7 +270,5 @@ describe '#run', ->
 
       done()
 
-    .fail (error) ->
-      console.log error
-      done error
+    .fail (error) -> done _.prettify error
     .done()

@@ -292,3 +292,4 @@ describe '#run', ->
 
     .fail (error) -> done _.prettify error
     .done()
+  , 30000 # 30sec

@@ -75,6 +75,7 @@ class PriceSync
     actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, retailerCustomerGroup.id, masterCustomerGroup.id)
 
     if _.isEmpty(actions)
+      @logger.debug prices, "No available update actions for prices in product #{variantDataInMaster.productId}"
       Q({ updates: 0 })
     else
       data =

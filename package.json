@@ -31,9 +31,9 @@
   "dependencies": {
     "optimist": "0.6.1",
     "q": "1.0.1",
-    "sphere-node-client": "0.5.2",
-    "sphere-node-sync": "0.4.12",
-    "sphere-node-utils": "0.3.3",
+    "sphere-node-client": "0.6.6",
+    "sphere-node-sync": "0.5.3",
+    "sphere-node-utils": "0.4.7",
     "underscore": "1.6.0"
   },
   "devDependencies": {
@@ -43,10 +43,10 @@
     "grunt-coffeelint": "~0.0.8",
     "grunt-contrib-clean": "~0.5.0",
     "grunt-contrib-coffee": "~0.10.1",
-    "grunt-contrib-concat": "~0.3.0",
+    "grunt-contrib-concat": "~0.4.0",
     "grunt-contrib-watch": "~0.6.1",
     "grunt-shell": "~0.6.4",
-    "istanbul": "~0.2.6",
+    "istanbul": "~0.2.7",
     "jasmine-node": "~1.14.2",
     "sphere-coffeelint": "git://github.com/sphereio/sphere-coffeelint.git#master"
   },

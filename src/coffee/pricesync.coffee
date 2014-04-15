@@ -50,11 +50,13 @@ class PriceSync
 
         Qutils.processList variants, (retailerVariant) =>
           @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster.body
-        .then (infos) -> # TODO: processList doesn't accumulate results yet
-          _.reduce infos, ((acc, info) -> acc + info.updates), 0
     .then (results) =>
-      if _.isEmpty _.compact(results)
+      compacted = _.compact(results)
+      if _.isEmpty compacted
         summary = "[#{@retailerProjectKey}] There are no products to sync prices for."
+      else
+        reduced = _.reduce compacted, ((acc, info) -> acc + info.updates), 0
+        summary = "[#{@retailerProjectKey}] #{reduced} price updates were synced."
       Q(summary)
 
   _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->

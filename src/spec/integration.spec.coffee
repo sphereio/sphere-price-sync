@@ -204,7 +204,7 @@ describe '#run', ->
       @logger.debug 'Product updated (mastersku)'
       @priceSync.run()
     .then (msg) =>
-      @logger.debug msg, "SYNC RESULT"
+      expect(msg).toBe "[#{Config.config.project_key}] 5 price updates were synced."
       @client.products.byId(@masterProductId).fetch()
     .then (result) =>
       @logger.debug 'Master product fetched'

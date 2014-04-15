@@ -1,12 +1,20 @@
-PriceSync = require '../lib/pricesync'
-_ = require('underscore')._
+_ = require 'underscore'
 Q = require 'q'
+Logger = require '../lib/logger'
+PriceSync = require '../lib/pricesync'
 
 describe 'PriceSync', ->
+
   beforeEach ->
+    @logger = new Logger
+      streams: [
+        { level: 'error', stream: process.stderr }
+      ]
+
     options =
       baseConfig:
-        logConfig: {}
+        logConfig:
+          logger: @logger
       master:
         project_key: 'x'
         client_id: 'y'
@@ -17,7 +25,7 @@ describe 'PriceSync', ->
         client_secret: 'c'
 
     @priceSync = new PriceSync options
-  
+
   describe '#_filterPrices', ->
     it 'should work for no variants', ->
       data = @priceSync._filterPrices [], [], {}, {}
@@ -44,7 +52,8 @@ describe 'PriceSync', ->
       expect(data.masterPrices[1]).toEqual { customerGroup: { id: 'foo' }, channel: { id: 'retailerX' } }
 
   describe '#_updatePrices', ->
-    it 'should complain when no price at retailer', ->
+
+    it 'should complain when there are no prices at retailer', ->
       updates = @priceSync._updatePrices [], [], 'bla', 'sku1'
       expect(_.size updates).toBe 0
 

@@ -1,7 +1,8 @@
-{Logger, ProjectCredentialsConfig} = require 'sphere-node-utils'
+{ProjectCredentialsConfig} = require 'sphere-node-utils'
 package_json = require '../package.json'
 PriceSync = require '../lib/pricesync'
 Config = require '../config'
+Logger = require './logger'
 
 argv = require('optimist')
   .usage('Usage: $0 --projectKey key --clientId id --clientSecret secret --logDir dir --logLevel level --timeout timeout')
@@ -23,10 +24,9 @@ argv = require('optimist')
   .argv
 
 logOptions =
-  name: "#{package_json.name}-#{package_json.version}:#{argv.projectKey}"
   streams: [
     { level: 'error', stream: process.stderr }
-    { level: argv.logLevel, path: "#{argv.logDir}/sphere-price-sync.log" }
+    { level: argv.logLevel, path: "#{argv.logDir}/sphere-price-sync_#{argv.projectKey}.log" }
   ]
 logOptions.silent = argv.logSilent if argv.logSilent
 logger = new Logger logOptions

@@ -1,14 +1,12 @@
 _ = require 'underscore'
 Q = require 'q'
-{Logger} = require 'sphere-node-utils'
-package_json = require '../package.json'
+Logger = require '../lib/logger'
 PriceSync = require '../lib/pricesync'
 
 describe 'PriceSync', ->
 
   beforeEach ->
     @logger = new Logger
-      name: "#{package_json.name}-#{package_json.version}:xxx"
       streams: [
         { level: 'error', stream: process.stderr }
       ]

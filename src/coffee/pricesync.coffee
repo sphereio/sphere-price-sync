@@ -1,22 +1,17 @@
 _ = require 'underscore'
-InventoryUpdater = require('sphere-node-sync').InventoryUpdater
-CommonUpdater = require('sphere-node-sync').CommonUpdater
-SphereClient = require 'sphere-node-client'
-TaskQueue = require './taskqueue'
 Q = require 'q'
+SphereClient = require 'sphere-node-client'
+{Qutils} = require 'sphere-node-utils'
 
 CHANNEL_ROLES = ['InventorySupply', 'OrderExport', 'OrderImport']
 CUSTOMER_GROUP_SALE = 'specialPrice'
 
 class DataIssue
+  constructor: (@msg) ->
 
-  constructor: (msg) ->
-    @msg = msg
-
-class PriceSync extends CommonUpdater
+class PriceSync
 
   constructor: (options = {}) ->
-    super options
     throw new Error 'No base configuration in options!' unless options.baseConfig
     throw new Error 'No master configuration in options!' unless options.master
     throw new Error 'No retailer configuration in options!' unless options.retailer
@@ -34,37 +29,45 @@ class PriceSync extends CommonUpdater
 
     @fetchHours = options.baseConfig.fetchHours or 24
 
-    # TODO: move to helper in sphere-node-utils
-    @inventoryUpdater = new InventoryUpdater masterOpts
-
-    @taskQueue = new TaskQueue()
-
   run: ->
     Q.all([
-      @inventoryUpdater.ensureChannelByKey(@masterClient._rest, @retailerProjectKey, CHANNEL_ROLES)
+      @masterClient.channels.ensure(@retailerProjectKey, CHANNEL_ROLES)
       @getCustomerGroup(@masterClient, CUSTOMER_GROUP_SALE)
       @getCustomerGroup(@retailerClient, CUSTOMER_GROUP_SALE)
     ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup) =>
-      @getPublishedProducts @retailerClient, ((page, count) => @_logInfo "[#{@retailerProjectKey}] Page #{page} processed - #{count} price update(s) done."), (retailerProduct) =>
-        current = retailerProduct.masterData.current
+      @retailerClient.products
+      .sort('id')
+      .last("#{@fetchHours}h")
+      .where("masterData(published=\"true\")")
+      .perPage(1) # one product at a time
+      .process (retailerProduct) =>
+        @logger.debug retailerProduct, 'Processing retailer product'
+        return Q() if retailerProduct.body.total is 0
+        @logger.debug "Processing product #{retailerProduct.body.results[0].id}"
+        current = retailerProduct.body.results[0].masterData.current
         current.variants or= []
         variants = [current.masterVariant].concat(current.variants)
 
-        v = _.map variants, (retailerVariant) =>
-          @taskQueue.addTask _.bind(@_processVariant, this, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
-        Q.all(v)
-        .then (infos) ->
-          _.reduce infos, ((acc, info) -> acc + info.updates), 0
+        Qutils.processList variants, (retailerVariant) =>
+          @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster.body
+    .then (results) =>
+      compacted = _.compact(results)
+      if _.isEmpty compacted
+        summary = "[#{@retailerProjectKey}] There are no products to sync prices for."
+      else
+        reduced = _.reduce compacted, ((acc, info) -> acc + info.updates), 0
+        summary = "[#{@retailerProjectKey}] #{reduced} price updates were synced."
+      Q(summary)
 
   _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
-    @getVariantByMasterSku(@masterClient, retailerVariant)
+    @getVariantByMasterSku(retailerVariant)
     .then (variantDataInMaster) =>
       @syncVariantPrices(variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
-    .fail (msg) =>
-      if msg instanceof DataIssue
-        @_logWarn msg.msg
+    .fail (error) =>
+      if error instanceof DataIssue
+        @logger.warn error.msg
       else
-        @_logError msg
+        @logger.error error
       Q({ updates: 0 })
 
   syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
@@ -72,76 +75,41 @@ class PriceSync extends CommonUpdater
     actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, retailerCustomerGroup.id, masterCustomerGroup.id)
 
     if _.isEmpty(actions)
+      @logger.debug prices, "No available update actions for prices in product #{variantDataInMaster.productId}"
       Q({ updates: 0 })
-
     else
       data =
         version: variantDataInMaster.productVersion
         variantId: variantDataInMaster.productId
         actions: actions
 
-      @masterClient.products.byId(variantDataInMaster.productId).save(data)
-      .then ->
-        Q({ updates: _.size(actions) })
-
-  getPublishedProducts: (client, pageProcessedCb, processFn) ->
-    deferred = Q.defer()
-
-    pageProducts = (page = 1, perPage = 50, total, acc = 0) =>
-      if total? and (page - 1) * perPage > total
-        deferred.resolve acc
-      else
-        client.products.page(page).perPage(perPage).sort('id').last("#{@fetchHours}h").where("masterData(published=\"true\")").fetch()
-        .then (payload) =>
-          processes = _.map payload.results, (elem) ->
-            processFn(elem)
-
-          if page is 1 and _.isEmpty(processes)
-            @_logInfo "[#{@retailerProjectKey}] There are no products to sync prices for."
-
-          Q.all(processes)
-          .then (counts) ->
-            [_.reduce(counts, ((acc, count) -> acc + count), 0), payload]
-        .then ([count, payload]) ->
-          pageProcessedCb(page, count)
-          pageProducts page + 1, perPage, payload.total, count + acc
-        .fail (error) ->
-          deferred.reject error
-        .done()
-
-    pageProducts()
-    deferred.promise
+      @logger.debug data, "About to update product #{variantDataInMaster.productId} in master"
+      @masterClient.products.byId(variantDataInMaster.productId).update(data)
+      .then -> Q({ updates: _.size(actions) })
 
   getCustomerGroup: (client, name) ->
-    deferred = Q.defer()
     client.customerGroups.where("name=\"#{name}\"").fetch()
     .then (result) =>
-      if _.size(result.results) is 1
-        deferred.resolve result.results[0]
+      if _.size(result.body.results) is 1
+        Q result.body.results[0]
       else
-        deferred.reject new Error("[#{@retailerProjectKey}] Can not find cutomer group '#{name}'.")
-    .fail (error) ->
-      deferred.reject error
-    .done()
+        Q.reject new Error("[#{@retailerProjectKey}] Can not find cutomer group '#{name}'.")
 
-    deferred.promise
-
-  getVariantByMasterSku: (client, variant, staged = true) ->
-    deferred = Q.defer()
+  getVariantByMasterSku: (variant, staged = true) ->
+    @logger.debug "Processing variant #{variant.id} (sku: #{variant.sku})"
     variant.attributes or= []
-    attribute = _.find variant.attributes, (attribute) ->
-      attribute.name is 'mastersku'
-    unless attribute
-      deferred.reject new DataIssue("[#{@retailerProjectKey}] No mastersku attribute!")
-    else
+    attribute = _.find variant.attributes, (attribute) -> attribute.name is 'mastersku'
+    if attribute
       masterSku = attribute.value
-      unless masterSku
-        deferred.reject new DataIssue("[#{@retailerProjectKey}] No mastersku set!")
-      else
-        query = encodeURIComponent "masterVariant(sku = \"#{masterSku}\") or variants(sku = \"#{masterSku}\")"
-        client._rest.GET "/product-projections?staged=#{staged}&where=#{query}", (error, response, body) =>
+      if masterSku
+        @masterClient.productProjections
+        .staged(staged)
+        .where("masterVariant(sku = \"#{masterSku}\") or variants(sku = \"#{masterSku}\")")
+        .fetch()
+        .then (result) =>
+          body = result.body
           if body.total isnt 1
-            deferred.reject new DataIssue("[#{@retailerProjectKey}] There are #{body.total} published products in master for sku '#{masterSku}'.")
+            Q.reject new DataIssue("[#{@retailerProjectKey}] There are #{body.total} published products in master for sku '#{masterSku}'.")
           else
             product = body.results[0]
             variants = [product.masterVariant].concat(product.variants)
@@ -152,11 +120,14 @@ class PriceSync extends CommonUpdater
                 productId: product.id
                 productVersion: product.version
                 variant: match
-              deferred.resolve data
+              @logger.debug data, 'Matched data'
+              Q data
             else
-              deferred.reject new Error("[#{@retailerProjectKey}] Can't find matching variant")
-
-    deferred.promise
+              Q.reject new Error("[#{@retailerProjectKey}] Can't find matching variant")
+      else
+        Q.reject new DataIssue("[#{@retailerProjectKey}] No mastersku set!")
+    else
+      Q.reject new DataIssue("[#{@retailerProjectKey}] No mastersku attribute!")
 
   _filterPrices: (retailerVariant, variantInMaster, retailerCustomerGroup, masterCustomerGroup, retailerChannel) ->
     retailerPrices = _.select retailerVariant.prices, (price) ->
@@ -180,7 +151,7 @@ class PriceSync extends CommonUpdater
     syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') =>
       if masterPrice? and retailerPrice?
         if masterPrice.value.currencyCode isnt retailerPrice.value.currencyCode
-          @_logError "[#{@retailerProjectKey}] SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
+          @logger.error "[#{@retailerProjectKey}] SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
         else
           if masterPrice.value.centAmount isnt retailerPrice.value.centAmount
             # Update the price's amount
@@ -211,7 +182,7 @@ class PriceSync extends CommonUpdater
           variantId: variantInMaster.id
           price: masterPrice
       else if priceType isnt CUSTOMER_GROUP_SALE
-        @_logWarn "[#{@retailerProjectKey}] SKU #{variantInMaster.sku}: There are NO normal prices at all."
+        @logger.warn "[#{@retailerProjectKey}] SKU #{variantInMaster.sku}: There are NO normal prices at all."
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
     if action?
@@ -236,16 +207,16 @@ class PriceSync extends CommonUpdater
     _.find prices, (p) ->
       _.has(p, 'customerGroup') and p.customerGroup.id is customerGroupId
 
-  _logError: (msg) ->
-    if @logger?
-      @logger.error error: msg, msg
+  # _logError: (msg) ->
+  #   if @logger?
+  #     @logger.error error: msg, msg
 
-  _logWarn: (msg) ->
-    if @logger?
-      @logger.warn warn: msg, msg
+  # _logWarn: (msg) ->
+  #   if @logger?
+  #     @logger.warn warn: msg, msg
 
-  _logInfo: (msg) ->
-    if @logger?
-      @logger.info info: msg, msg
+  # _logInfo: (msg) ->
+  #   if @logger?
+  #     @logger.info info: msg, msg
 
 module.exports = PriceSync

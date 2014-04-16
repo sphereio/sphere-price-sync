@@ -1,24 +1,24 @@
 language: node_js
 node_js:
-- '0.10'
+  - '0.10'
 before_script:
-- npm install -g grunt-cli
-- ./create_config.sh
+  - npm install -g grunt-cli
+  - ./create_config.sh
 script:
-- npm test
-- node lib/run --projectKey ${SPHERE_PROJECT_KEY} --clientId ${SPHERE_CLIENT_ID} --clientSecret ${SPHERE_CLIENT_SECRET}
-- node lib/run --projectKey ${SPHERE_PROJECT_KEY}
+  - npm test
+  - node lib/run --projectKey ${SPHERE_PROJECT_KEY} --clientId ${SPHERE_CLIENT_ID} --clientSecret ${SPHERE_CLIENT_SECRET}
+  - node lib/run --projectKey ${SPHERE_PROJECT_KEY}
 env:
   global:
-  - secure: hKwW5y/IJZp1WrgTlYtkmP7KZ8rYQGUFkvPw7j5fPDYALnrdDkkrEhX/mdjIXhnmR6Q9Ji+G9MKo9r8heNqTLMU68Fp1dBWqNbWCnRZlXHFy1qQaLzgGZiVM+gxbOhqrEMTgh5yjsC8gg0InbvfliCjdM1lD4Bt1oKuWU1MFU7c=
-  - secure: dNCZmlmwwjB5bMmmhX0WHtu8w5uEFq9V22NxBYCrpSXR/t6BJl43u0YtjWSSxPzIIPvB7boTLOSxwHDFz0un0RyiFv1iEYhepxs5V/R57btR6P591/vMVaQoYpXKpCm6eFInR8HCmg0dC6RhCfVQj7t7c5x3zjXNpktEoQNpgtI=
-  - secure: Ca2tS5q6NqPHKOx8dJXWqjWNVyvr6UM5s+1eF95huC9jmOF8dNCMqok1z8vCWrxRvBs1+iuy9ICbYYRx2hBKmWgYo884H3kFTZSI4Sye5wZXupCTxr/2YFKyGyGcoKQI2ryRpAJOHDIkDY6/y1aXBG+6E/DcsWHwD88ytc+Tbck=
+    - secure: IDaaXXWuPutowgeAYYIWd9OV0ipNr0PUEQ3OggVt9YbjmXmkbrBMyV03cQGKKnoa/WqYuv6jWbntD8ktP6aOwj2wXQB9Tm0jlrF4DjF0V9ae6C33iENgIRQ7NSYbgPh7KODfS6dZV8KI2nVvMqb2iq0nkWuQMiGco2vgopCquxU=
+    - secure: H6DxQsTmGkD/3DgFFWPHTfRU5IN6kMLvH5RHMZfbXWZDyr/GMCL4syP3CvAqq78FdhFhkpAiwAG1uL1IkSqN5+F91MXJAdjmLgyHJ8S+suv7SQfz4eQ2Q75DUUW90NB3qH7bb+Ur0jCHTbs0ez+mfgzvCVlGOTE2huF/vnx5R0Q=
+    - secure: cUAWx4FbThNuhAgzEWc/mDrEpif3HABiB33fVDhGnPcTrealAePEl74XAlDrvPVl2MNh9CdGrLXmZmwpPXElcGwfei9uMKlgrO0S5/H07YYpGhLj0WQjhb/yyeB2dEsjHjhm5n0v2HXnmpWKhpsuq4nrixRIX+OXCKRbpr3tV10=
 notifications:
   hipchat:
     rooms:
       secure: EsYUS0zz2/dsDEX/ii+eZg8ilgb82a+vysEbB3oq54hFTaAY09jAe8073laeIWIt1FJqGi0MvxFL8Viob2EcbQinA/ElK/k3QEkj67jGJKLQQhwaH7eBjaTkzT8hhl5RmAA/NI0mretzqJOkhoC90k7wjT91ocRZMwHirHEVMW4=
     template:
-    - '%{repository}#%{build_number} (%{author}): %{message} (<a href="%{build_url}">Details</a> <a href="%{compare_url}">Compare</a>)'
+      - '%{repository}#%{build_number} (%{author}): %{message} (<a href="%{build_url}">Details</a> <a href="%{compare_url}">Compare</a>)'
     format: html
     on_success: change
     on_failure: change

@@ -1,7 +1,7 @@
 {
   "name": "sphere-price-sync",
   "description": "Sync your retailer inventory to your SPHERE.IO master project",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "homepage": "https://github.com/sphereio/sphere-price-sync",
   "private": true,
   "author": {

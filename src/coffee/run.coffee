@@ -1,3 +1,4 @@
+Q = require 'q'
 {ProjectCredentialsConfig} = require 'sphere-node-utils'
 package_json = require '../package.json'
 PriceSync = require '../lib/pricesync'
@@ -35,6 +36,7 @@ if argv.logSilent
   logger.debug = -> # noop
 
 process.on 'SIGUSR2', -> logger.reopenFileStreams()
+process.on 'exit', => process.exit(@exitCode)
 
 credentialsConfig = ProjectCredentialsConfig.create()
 .then (credentials) ->
@@ -60,12 +62,14 @@ credentialsConfig = ProjectCredentialsConfig.create()
   updater.run()
   .then (message) ->
     logger.info message
-    process.exit 0
+    @exitCode = 0
   .fail (error) ->
     logger.error error, 'Oops, something went wrong!'
-    process.exit(1)
+    # process.exit(1)
+    @exitCode 1
   .done()
 .fail (err) ->
   logger.error err, "Problems on getting client credentials from config files."
-  process.exit(1)
+  # process.exit(1)
+  @exitCode = 1
 .done()

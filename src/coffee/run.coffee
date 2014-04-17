@@ -1,9 +1,8 @@
 Q = require 'q'
-{ProjectCredentialsConfig} = require 'sphere-node-utils'
+{ExtendedLogger, ProjectCredentialsConfig} = require 'sphere-node-utils'
 package_json = require '../package.json'
 PriceSync = require '../lib/pricesync'
 Config = require '../config'
-Logger = require './logger'
 
 argv = require('optimist')
   .usage('Usage: $0 --projectKey key --clientId id --clientSecret secret --logDir dir --logLevel level --timeout timeout')
@@ -25,15 +24,19 @@ argv = require('optimist')
   .argv
 
 logOptions =
+  name: "#{package_json.name}-#{package_json.version}"
   streams: [
     { level: 'error', stream: process.stderr }
-    { level: argv.logLevel, path: "#{argv.logDir}/sphere-price-sync_#{argv.projectKey}.log" }
+    { level: argv.logLevel, path: "#{argv.logDir}/sphere-price-sync.log" }
   ]
 logOptions.silent = argv.logSilent if argv.logSilent
-logger = new Logger logOptions
+logger = new ExtendedLogger
+  additionalFields:
+    project_key: argv.projectKey
+  logConfig: logOptions
 if argv.logSilent
-  logger.trace = -> # noop
-  logger.debug = -> # noop
+  logger.bunyanLogger.trace = -> # noop
+  logger.bunyanLogger.debug = -> # noop
 
 process.on 'SIGUSR2', -> logger.reopenFileStreams()
 process.on 'exit', => process.exit(@exitCode)
@@ -46,7 +49,7 @@ credentialsConfig = ProjectCredentialsConfig.create()
       timeout: argv.timeout
       user_agent: "#{package_json.name} - #{package_json.version}"
       logConfig:
-        logger: logger
+        logger: logger.bunyanLogger
     master: credentials.enrichCredentials
       project_key: Config.config.project_key
       client_id: Config.config.client_id

@@ -1,8 +1,9 @@
+Q = require 'q'
 _ = require 'underscore'
 _.mixin require('sphere-node-utils')._u
-Q = require 'q'
+{ExtendedLogger} = require 'sphere-node-utils'
+package_json = require '../package.json'
 Config = require '../config'
-Logger = require '../lib/logger'
 PriceSync = require '../lib/pricesync'
 
 uniqueId = (prefix) ->
@@ -42,15 +43,19 @@ cleanup = (client, logger) ->
 describe '#run', ->
   beforeEach (done) ->
 
-    @logger = new Logger
-      streams: [
-        { level: 'info', stream: process.stdout }
-      ]
+    @logger = new ExtendedLogger
+      additionalFields:
+        project_key: Config.config.project_key
+      logConfig:
+        name: "#{package_json.name}-#{package_json.version}"
+        streams: [
+          { level: 'info', stream: process.stdout }
+        ]
 
     options =
       baseConfig:
         logConfig:
-          logger: @logger
+          logger: @logger.bunyanLogger
       master:
         project_key: Config.config.project_key
         client_id: Config.config.client_id

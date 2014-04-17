@@ -1,20 +1,25 @@
 _ = require 'underscore'
 Q = require 'q'
-Logger = require '../lib/logger'
+{ExtendedLogger} = require 'sphere-node-utils'
+package_json = require '../package.json'
 PriceSync = require '../lib/pricesync'
 
 describe 'PriceSync', ->
 
   beforeEach ->
-    @logger = new Logger
-      streams: [
-        { level: 'error', stream: process.stderr }
-      ]
+    @logger = new ExtendedLogger
+      additionalFields:
+        project_key: 'xxx'
+      logConfig:
+        name: "#{package_json.name}-#{package_json.version}"
+        streams: [
+          { level: 'error', stream: process.stdout }
+        ]
 
     options =
       baseConfig:
         logConfig:
-          logger: @logger
+          logger: @logger.bunyanLogger
       master:
         project_key: 'x'
         client_id: 'y'

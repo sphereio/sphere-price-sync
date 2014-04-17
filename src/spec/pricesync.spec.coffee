@@ -62,7 +62,7 @@ describe 'PriceSync', ->
         value:
           currencyCode: 'EUR'
           centAmount: 9999
-      updates = @priceSync._updatePrices [retailerPrice], [], 'retailerA', { id: 3, sku: 's3' }
+      updates = @priceSync._updatePrices [retailerPrice], [], 'retailerA', { id: 3, sku: 's3' }, true
       expect(_.size updates).toBe 1
       expectedAction =
         action: 'addPrice'
@@ -89,7 +89,7 @@ describe 'PriceSync', ->
         channel:
           typeId: 'channel'
           id: 'foo'
-      updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'foo', { sku: 'sku1' }
+      updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'foo', { sku: 'sku1' }, true
       expect(_.size updates).toBe 0
 
     it 'should change a normal price', ->
@@ -104,7 +104,7 @@ describe 'PriceSync', ->
         channel:
           typeId: 'channel'
           id: 'retailerB'
-      updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'retailerB', { id: 7, sku: 's7' }
+      updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'retailerB', { id: 7, sku: 's7' }, false
       expect(_.size updates).toBe 1
       expectedAction =
         action: 'changePrice'
@@ -116,7 +116,7 @@ describe 'PriceSync', ->
           channel:
             typeId: 'channel'
             id: 'retailerB'
-        staged: false
+        staged: true
       expect(updates[0]).toEqual expectedAction
 
 
@@ -128,7 +128,7 @@ describe 'PriceSync', ->
         customerGroup:
           typeId: 'customer-group'
           id: 'cgR'
-      updates = @priceSync._updatePrices [retailerPrice], [], 'retailerA', { id: 3, sku: 's3' }, 'cgR', 'cgM'
+      updates = @priceSync._updatePrices [retailerPrice], [], 'retailerA', { id: 3, sku: 's3' }, true, 'cgR', 'cgM'
       expect(_.size updates).toBe 1
       expectedAction =
         action: 'addPrice'
@@ -165,7 +165,7 @@ describe 'PriceSync', ->
           typeId: 'customer-group'
           id: 'cgMaster'
 
-      updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'retailerB', { id: 7, sku: 's7' }, 'cgRetailer', 'cgMaster'
+      updates = @priceSync._updatePrices [retailerPrice], [masterPrice], 'retailerB', { id: 7, sku: 's7' }, true, 'cgRetailer', 'cgMaster'
       expect(_.size updates).toBe 1
       expectedAction =
         action: 'changePrice'
@@ -195,7 +195,7 @@ describe 'PriceSync', ->
           typeId: 'customer-group'
           id: 'cgMaster'
 
-      updates = @priceSync._updatePrices [], [masterPrice], 'retailerB', { id: 3, sku: 's7' }, 'cgRetailer', 'cgMaster'
+      updates = @priceSync._updatePrices [], [masterPrice], 'retailerB', { id: 3, sku: 's7' }, true, 'cgRetailer', 'cgMaster'
       expect(_.size updates).toBe 1
       expectedAction =
         action: 'removePrice'

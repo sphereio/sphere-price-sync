@@ -72,7 +72,7 @@ class PriceSync
 
   syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     prices = @_filterPrices(retailerVariant, variantDataInMaster.variant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
-    actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, retailerCustomerGroup.id, masterCustomerGroup.id)
+    actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, variantDataInMaster.isPublished, retailerCustomerGroup.id, masterCustomerGroup.id)
 
     if _.isEmpty(actions)
       @logger.debug prices, "No available update actions for prices in product #{variantDataInMaster.productId}"
@@ -95,7 +95,7 @@ class PriceSync
       else
         Q.reject new Error("[#{@retailerProjectKey}] Can not find cutomer group '#{name}'.")
 
-  getVariantByMasterSku: (variant, staged = true) ->
+  getVariantByMasterSku: (variant) ->
     @logger.debug "Processing variant #{variant.id} (sku: #{variant.sku})"
     variant.attributes or= []
     attribute = _.find variant.attributes, (attribute) -> attribute.name is 'mastersku'
@@ -103,13 +103,13 @@ class PriceSync
       masterSku = attribute.value
       if masterSku
         @masterClient.productProjections
-        .staged(staged)
+        .staged(true) # always get the staged version from master
         .where("masterVariant(sku = \"#{masterSku}\") or variants(sku = \"#{masterSku}\")")
         .fetch()
         .then (result) =>
           body = result.body
           if body.total isnt 1
-            Q.reject new DataIssue("[#{@retailerProjectKey}] There are #{body.total} published products in master for sku '#{masterSku}'.")
+            Q.reject new DataIssue("[#{@retailerProjectKey}] There are #{body.total} products in master for sku '#{masterSku}'.")
           else
             product = body.results[0]
             variants = [product.masterVariant].concat(product.variants)
@@ -119,6 +119,7 @@ class PriceSync
               data =
                 productId: product.id
                 productVersion: product.version
+                isPublished: product.published is true
                 variant: match
               @logger.debug data, 'Matched data'
               Q data
@@ -146,7 +147,7 @@ class PriceSync
     data
 
 
-  _updatePrices: (retailerPrices, masterPrices, channelId, variantInMaster, retailerCustomerGroupId, masterCustomerGroupId) ->
+  _updatePrices: (retailerPrices, masterPrices, channelId, variantInMaster, isPublished, retailerCustomerGroupId, masterCustomerGroupId) ->
     actions = []
     syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') =>
       if masterPrice? and retailerPrice?
@@ -187,14 +188,14 @@ class PriceSync
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
     if action?
       liveAction = _.clone action
-      liveAction.staged = false
+      liveAction.staged = not isPublished
       actions.push liveAction
 
     action = syncAmountOrCreate(@_salesPrice(retailerPrices, retailerCustomerGroupId), @_salesPrice(masterPrices, masterCustomerGroupId), CUSTOMER_GROUP_SALE)
 
     if action?
       liveAction = _.clone action
-      liveAction.staged = false
+      liveAction.staged = not isPublished
       actions.push liveAction
 
     actions

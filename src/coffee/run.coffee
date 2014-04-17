@@ -39,7 +39,7 @@ process.on 'SIGUSR2', -> logger.reopenFileStreams()
 process.on 'exit', => process.exit(@exitCode)
 
 credentialsConfig = ProjectCredentialsConfig.create()
-.then (credentials) ->
+.then (credentials) =>
   options =
     baseConfig:
       fetchHours: argv.fetchHours
@@ -60,15 +60,15 @@ credentialsConfig = ProjectCredentialsConfig.create()
 
   updater = new PriceSync options
   updater.run()
-  .then (message) ->
+  .then (message) =>
     logger.info message
     @exitCode = 0
-  .fail (error) ->
+  .fail (error) =>
     logger.error error, 'Oops, something went wrong!'
     # process.exit(1)
     @exitCode 1
   .done()
-.fail (err) ->
+.fail (err) =>
   logger.error err, "Problems on getting client credentials from config files."
   # process.exit(1)
   @exitCode = 1

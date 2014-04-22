@@ -11,7 +11,7 @@ class DataIssue
 
 class PriceSync
 
-  constructor: (options = {}) ->
+  constructor: (@logger, options = {}) ->
     throw new Error 'No base configuration in options!' unless options.baseConfig
     throw new Error 'No master configuration in options!' unless options.master
     throw new Error 'No retailer configuration in options!' unless options.retailer
@@ -24,7 +24,6 @@ class PriceSync
     @masterClient = new SphereClient masterOpts
     @retailerClient = new SphereClient retailerOpts
 
-    @logger = options.baseConfig.logConfig.logger
     @retailerProjectKey = options.retailer.project_key
 
     @fetchHours = options.baseConfig.fetchHours or 24
@@ -207,17 +206,5 @@ class PriceSync
   _salesPrice: (prices, customerGroupId) ->
     _.find prices, (p) ->
       _.has(p, 'customerGroup') and p.customerGroup.id is customerGroupId
-
-  # _logError: (msg) ->
-  #   if @logger?
-  #     @logger.error error: msg, msg
-
-  # _logWarn: (msg) ->
-  #   if @logger?
-  #     @logger.warn warn: msg, msg
-
-  # _logInfo: (msg) ->
-  #   if @logger?
-  #     @logger.info info: msg, msg
 
 module.exports = PriceSync

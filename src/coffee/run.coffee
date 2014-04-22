@@ -61,7 +61,7 @@ credentialsConfig = ProjectCredentialsConfig.create()
 
   options.baseConfig.host = argv.sphereHost if argv.sphereHost?
 
-  updater = new PriceSync options
+  updater = new PriceSync logger, options
   updater.run()
   .then (message) =>
     logger.info message

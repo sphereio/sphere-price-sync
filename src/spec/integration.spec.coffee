@@ -65,7 +65,7 @@ describe '#run', ->
         client_id: Config.config.client_id
         client_secret: Config.config.client_secret
 
-    @priceSync = new PriceSync options
+    @priceSync = new PriceSync @logger, options
     @client = @priceSync.masterClient
 
     cleanup(@client, @logger)

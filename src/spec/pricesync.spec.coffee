@@ -29,7 +29,7 @@ describe 'PriceSync', ->
         client_id: 'b'
         client_secret: 'c'
 
-    @priceSync = new PriceSync options
+    @priceSync = new PriceSync @logger, options
 
   describe '#_filterPrices', ->
     it 'should work for no variants', ->

@@ -43,7 +43,9 @@ class PriceSync
         current.variants or= []
         variants = [current.masterVariant].concat(current.variants)
 
-        Qutils.processList variants, (retailerVariant) =>
+        Qutils.processList variants, (retailerVariants) =>
+          throw new Error 'Variants should be processed once at a time' if retailerVariants.length isnt 1
+          retailerVariant = retailerVariants[0]
           @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster.body
     .then (results) ->
       compacted = _.compact(results)

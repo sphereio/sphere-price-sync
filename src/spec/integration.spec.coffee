@@ -140,7 +140,9 @@ describe '#run', ->
   it 'do nothing', (done) ->
     @priceSync.run()
     .then (msg) ->
-      expect(msg).toBe "[#{Config.config.project_key}] There are no products to sync prices for."
+      expect(msg).toEqual
+        message: 'Summary: 0 unsynced prices, everything is fine.'
+        data: []
       done()
     .fail (error) -> done _.prettify error
     .done()
@@ -213,8 +215,13 @@ describe '#run', ->
       .then (result) =>
         @logger.debug 'Master product updated (mastersku)'
         @priceSync.run()
-      .then (msg) =>
-        expect(msg).toBe "[#{Config.config.project_key}] 5 price updates were synced."
+      .then (summary) =>
+        if productState.isPublished
+          expect(summary.message).toEqual 'Summary: 5 prices were successfully synced, 3 failed'
+          expect(summary.data.length).toBe 3
+        else
+          expect(summary.message).toEqual 'Summary: 5 prices were successfully synced, 0 failed'
+          expect(summary.data.length).toBe 0
         @client.products.byId(@masterProductId).fetch()
       .then (result) =>
         @logger.debug result, 'Master product fetched'

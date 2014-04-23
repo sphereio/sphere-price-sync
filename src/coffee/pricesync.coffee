@@ -6,9 +6,6 @@ SphereClient = require 'sphere-node-client'
 CHANNEL_ROLES = ['InventorySupply', 'OrderExport', 'OrderImport']
 CUSTOMER_GROUP_SALE = 'specialPrice'
 
-class DataIssue
-  constructor: (@msg) ->
-
 class PriceSync
 
   constructor: (@logger, options = {}) ->
@@ -25,7 +22,6 @@ class PriceSync
     @retailerClient = new SphereClient retailerOpts
 
     @retailerProjectKey = options.retailer.project_key
-
     @fetchHours = options.baseConfig.fetchHours or 24
 
   run: ->
@@ -49,25 +45,28 @@ class PriceSync
 
         Qutils.processList variants, (retailerVariant) =>
           @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster.body
-    .then (results) =>
+    .then (results) ->
       compacted = _.compact(results)
       if _.isEmpty compacted
-        summary = "[#{@retailerProjectKey}] There are no products to sync prices for."
+        summary = "Summary: 0 unsynced prices, everything is fine."
       else
-        reduced = _.reduce compacted, ((acc, info) -> acc + info.updates), 0
-        summary = "[#{@retailerProjectKey}] #{reduced} price updates were synced."
-      Q(summary)
+        [successSync, failSync] = _.partition compacted, (info) -> not info.error
+        reducedSuccess = _.reduce successSync, ((acc, info) -> acc + info.updates), 0
+        reducedFail = _.reduce failSync, (acc, info) ->
+          acc.updates++
+          acc.errors.push info.error
+          acc
+        , {updates: 0, errors: []}
+        summary = "Summary: #{reducedSuccess} prices were successfully synced, #{reducedFail.updates} failed"
+        if reducedFail.updates > 0
+          data = reducedFail.errors
+      Q {message: summary, data: (data or [])}
 
   _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     @getVariantByMasterSku(retailerVariant)
     .then (variantDataInMaster) =>
       @syncVariantPrices(variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
-    .fail (error) =>
-      if error instanceof DataIssue
-        @logger.warn error.msg
-      else
-        @logger.error error
-      Q({ updates: 0 })
+    .fail (error) -> Q({ updates: 0, error: error })
 
   syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     prices = @_filterPrices(retailerVariant, variantDataInMaster.variant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
@@ -88,11 +87,11 @@ class PriceSync
 
   getCustomerGroup: (client, name) ->
     client.customerGroups.where("name=\"#{name}\"").fetch()
-    .then (result) =>
+    .then (result) ->
       if _.size(result.body.results) is 1
         Q result.body.results[0]
       else
-        Q.reject new Error("[#{@retailerProjectKey}] Can not find cutomer group '#{name}'.")
+        Q.reject "Can not find cutomer group '#{name}'."
 
   getVariantByMasterSku: (variant) ->
     @logger.debug "Processing variant #{variant.id} (sku: #{variant.sku})"
@@ -108,7 +107,7 @@ class PriceSync
         .then (result) =>
           body = result.body
           if body.total isnt 1
-            Q.reject new DataIssue("[#{@retailerProjectKey}] There are #{body.total} products in master for sku '#{masterSku}'.")
+            Q.reject {msg: "There are #{body.total} products in master for sku '#{masterSku}'.", obj: variant}
           else
             product = body.results[0]
             variants = [product.masterVariant].concat(product.variants)
@@ -123,11 +122,11 @@ class PriceSync
               @logger.debug data, 'Matched data'
               Q data
             else
-              Q.reject new Error("[#{@retailerProjectKey}] Can't find matching variant")
+              Q.reject {msg: "Cannot find matching variant for sku '#{masterSku}'", obj: variants}
       else
-        Q.reject new DataIssue("[#{@retailerProjectKey}] No mastersku set!")
+        Q.reject {msg: 'No mastersku set!', obj: variant}
     else
-      Q.reject new DataIssue("[#{@retailerProjectKey}] No mastersku attribute!")
+      Q.reject {msg: 'No mastersku attribute!', obj: variant}
 
   _filterPrices: (retailerVariant, variantInMaster, retailerCustomerGroup, masterCustomerGroup, retailerChannel) ->
     retailerPrices = _.select retailerVariant.prices, (price) ->
@@ -151,7 +150,7 @@ class PriceSync
     syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') =>
       if masterPrice? and retailerPrice?
         if masterPrice.value.currencyCode isnt retailerPrice.value.currencyCode
-          @logger.error "[#{@retailerProjectKey}] SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
+          @logger.error "SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
         else
           if masterPrice.value.centAmount isnt retailerPrice.value.centAmount
             # Update the price's amount
@@ -182,7 +181,7 @@ class PriceSync
           variantId: variantInMaster.id
           price: masterPrice
       else if priceType isnt CUSTOMER_GROUP_SALE
-        @logger.warn "[#{@retailerProjectKey}] SKU #{variantInMaster.sku}: There are NO normal prices at all."
+        @logger.warn "SKU #{variantInMaster.sku}: There are NO normal prices at all."
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
     if action?

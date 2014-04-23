@@ -21,7 +21,7 @@ cleanup = (client, logger) ->
     Q.all _.map payload.body.results, (product) ->
       client.products.byId(product.id).update(updateUnpublish(product.version))
   .then (results) ->
-    logger.info "Unpublished #{results.length} products"
+    logger.debug "Unpublished #{results.length} products"
     logger.debug 'About to delete all products'
     client.products.perPage(0).fetch()
   .then (payload) ->
@@ -29,7 +29,7 @@ cleanup = (client, logger) ->
     Q.all _.map payload.body.results, (product) ->
       client.products.byId(product.id).delete(product.version)
   .then (results) ->
-    logger.info "Deleted #{results.length} products"
+    logger.debug "Deleted #{results.length} products"
     logger.debug 'About to delete all product types'
     client.productTypes.perPage(0).fetch()
   .then (payload) ->
@@ -68,6 +68,7 @@ describe '#run', ->
     @priceSync = new PriceSync @logger, options
     @client = @priceSync.masterClient
 
+    @logger.info 'About to setup...'
     cleanup(@client, @logger)
     .then =>
       @client.customerGroups.where('name = \"specialPrice\"').fetch()
@@ -132,6 +133,7 @@ describe '#run', ->
   , 20000 # 20sec
 
   afterEach (done) ->
+    @logger.info 'About to cleanup...'
     cleanup(@client, @logger)
     .then -> done()
     .fail (error) -> done(_.prettify(error))
@@ -139,10 +141,10 @@ describe '#run', ->
 
   it 'do nothing', (done) ->
     @priceSync.run()
-    .then (msg) ->
-      expect(msg).toEqual
-        message: 'Summary: 0 unsynced prices, everything is fine.'
-        data: []
+    .then (summary) =>
+      @logger.info summary.data, summary.message
+      expect(summary.message).toBe 'Summary: 0 unsynced prices, everything is fine'
+      expect(summary.data.length).toBe 0
       done()
     .fail (error) -> done _.prettify error
     .done()
@@ -216,11 +218,12 @@ describe '#run', ->
         @logger.debug 'Master product updated (mastersku)'
         @priceSync.run()
       .then (summary) =>
+        @logger.info summary.data, summary.message
         if productState.isPublished
-          expect(summary.message).toEqual 'Summary: 5 prices were successfully synced, 3 failed'
+          expect(summary.message).toEqual 'Summary: 5 prices were successfully synced but there were 3 problems'
           expect(summary.data.length).toBe 3
         else
-          expect(summary.message).toEqual 'Summary: 5 prices were successfully synced, 0 failed'
+          expect(summary.message).toEqual 'Summary: 5 prices were successfully synced'
           expect(summary.data.length).toBe 0
         @client.products.byId(@masterProductId).fetch()
       .then (result) =>

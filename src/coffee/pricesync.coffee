@@ -48,7 +48,7 @@ class PriceSync
     .then (results) ->
       compacted = _.compact(results)
       if _.isEmpty compacted
-        summary = "Summary: 0 unsynced prices, everything is fine."
+        summary = "Summary: 0 unsynced prices, everything is fine"
       else
         [successSync, failSync] = _.partition compacted, (info) -> not info.error
         reducedSuccess = _.reduce successSync, ((acc, info) -> acc + info.updates), 0
@@ -57,7 +57,13 @@ class PriceSync
           acc.errors.push info.error
           acc
         , {updates: 0, errors: []}
-        summary = "Summary: #{reducedSuccess} prices were successfully synced, #{reducedFail.updates} failed"
+        if reducedSuccess is 0 and reducedFail.updates is 0
+          summary = "Summary: 0 unsynced prices, everything is fine"
+        else
+          if reducedFail.updates > 0
+            summary = "Summary: #{reducedSuccess} prices were successfully synced but there were #{reducedFail.updates} problems"
+          else
+            summary = "Summary: #{reducedSuccess} prices were successfully synced"
         if reducedFail.updates > 0
           data = reducedFail.errors
       Q {message: summary, data: (data or [])}
@@ -107,7 +113,7 @@ class PriceSync
         .then (result) =>
           body = result.body
           if body.total isnt 1
-            Q.reject {msg: "There are #{body.total} products in master for sku '#{masterSku}'.", obj: variant}
+            Q.reject {msg: "There are #{body.total} products in master for sku '#{masterSku}'."}
           else
             product = body.results[0]
             variants = [product.masterVariant].concat(product.variants)

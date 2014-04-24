@@ -23,86 +23,77 @@ class PriceSync
 
     @retailerProjectKey = options.retailer.project_key
     @fetchHours = options.baseConfig.fetchHours or 24
+    @_resetSummary()
+
+  _resetSummary: ->
+    @summary =
+      toUpdate: 0
+      toCreate: 0
+      toRemove: 0
+      synced: 0
+      failed: 0
 
   run: ->
+    @_resetSummary()
+
     Q.all([
       @masterClient.channels.ensure(@retailerProjectKey, CHANNEL_ROLES)
-      @getCustomerGroup(@masterClient, CUSTOMER_GROUP_SALE)
-      @getCustomerGroup(@retailerClient, CUSTOMER_GROUP_SALE)
-    ]).spread (retailerChannelInMaster, masterCustomerGroup, retailerCustomerGroup) =>
+      @masterClient.customerGroups.where("name = \"#{CUSTOMER_GROUP_SALE}\"").fetch()
+      @retailerClient.customerGroups.where("name = \"#{CUSTOMER_GROUP_SALE}\"").fetch()
+    ]).spread (resultMasterChannel, resultMasterCustomerGroup, resultRetailerCustomerGroup) =>
+      retailerChannelInMaster = resultMasterChannel.body
+      masterCustomerGroup = resultMasterCustomerGroup.body.results[0]
+      retailerCustomerGroup = resultRetailerCustomerGroup.body.results[0]
+      throw new Error "Cannot find customer group '#{CUSTOMER_GROUP_SALE}' in master" unless masterCustomerGroup
+      throw new Error "Cannot find customer group '#{CUSTOMER_GROUP_SALE}' in retailer" unless retailerCustomerGroup
+
       @retailerClient.products
       .sort('id')
       .last("#{@fetchHours}h")
       .where("masterData(published=\"true\")")
-      .perPage(1) # one product at a time
-      .process (retailerProduct) =>
-        @logger.debug retailerProduct, 'Processing retailer product'
-        return Q() if retailerProduct.body.total is 0
-        @logger.debug "Processing product #{retailerProduct.body.results[0].id}"
-        current = retailerProduct.body.results[0].masterData.current
-        current.variants or= []
-        variants = [current.masterVariant].concat(current.variants)
+      .perPage(100)
+      .process (payload) =>
+        retailerProductsBatch = payload.body.results
 
-        Qutils.processList variants, (retailerVariants) =>
-          throw new Error 'Variants should be processed once at a time' if retailerVariants.length isnt 1
-          retailerVariant = retailerVariants[0]
-          @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster.body
-    .then (results) ->
-      compacted = _.compact(results)
-      if _.isEmpty compacted
-        summary = "Summary: 0 unsynced prices, everything is fine"
+        Qutils.processList retailerProductsBatch, (retailerProducts) =>
+          throw new Error 'Products should be processed once at a time' if retailerProducts.length isnt 1
+          retailerProduct = retailerProducts[0]
+
+          @logger.debug retailerProduct, 'Processing retailer product'
+
+          current = retailerProduct.masterData.current
+          current.variants or= []
+          variants = [current.masterVariant].concat(current.variants)
+
+          Qutils.processList variants, (retailerVariants) =>
+            throw new Error 'Variants should be processed once at a time' if retailerVariants.length isnt 1
+            retailerVariant = retailerVariants[0]
+
+            @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster, retailerProduct.id
+          , {accumulate: false}
+        , {accumulate: false}
+      , {accumulate: false}
+
+    .then =>
+      if @summary.toUpdate is 0 and @summary.toCreate is 0 and @summary.toRemove is 0
+        message = 'Summary: 0 unsynced prices, everything is fine'
       else
-        [successSync, failSync] = _.partition compacted, (info) -> not info.error
-        reducedSuccess = _.reduce successSync, ((acc, info) -> acc + info.updates), 0
-        reducedFail = _.reduce failSync, (acc, info) ->
-          acc.updates++
-          acc.errors.push info.error
-          acc
-        , {updates: 0, errors: []}
-        if reducedSuccess is 0 and reducedFail.updates is 0
-          summary = "Summary: 0 unsynced prices, everything is fine"
-        else
-          if reducedFail.updates > 0
-            summary = "Summary: #{reducedSuccess} prices were successfully synced but there were #{reducedFail.updates} problems"
-          else
-            summary = "Summary: #{reducedSuccess} prices were successfully synced"
-        if reducedFail.updates > 0
-          data = reducedFail.errors
-      Q {message: summary, data: (data or [])}
+        message = "Summary: there were #{@summary.toUpdate + @summary.toCreate + @summary.toRemove} " +
+          "unsynced prices, (#{@summary.toUpdate} were updates, #{@summary.toCreate} were new and " +
+          "#{@summary.toRemove} were deletions) and #{@summary.synced} products in master " +
+          "were successfully synced (#{@summary.failed} failed)"
+      Q message
 
-  _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
-    @getVariantByMasterSku(retailerVariant)
+  _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster, retailerProductId) ->
+    @_getVariantByMasterSku(retailerVariant, retailerProductId)
     .then (variantDataInMaster) =>
-      @syncVariantPrices(variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
-    .fail (error) -> Q({ updates: 0, error: error })
+      if variantDataInMaster
+        @_syncVariantPrices(variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
+      else # not able to match prices with master, skipping...
+        Q()
 
-  syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
-    prices = @_filterPrices(retailerVariant, variantDataInMaster.variant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
-    actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, variantDataInMaster.isPublished, retailerCustomerGroup.id, masterCustomerGroup.id)
-
-    if _.isEmpty(actions)
-      @logger.debug prices, "No available update actions for prices in product #{variantDataInMaster.productId}"
-      Q({ updates: 0 })
-    else
-      data =
-        version: variantDataInMaster.productVersion
-        variantId: variantDataInMaster.productId
-        actions: actions
-
-      @logger.debug data, "About to update product #{variantDataInMaster.productId} in master"
-      @masterClient.products.byId(variantDataInMaster.productId).update(data)
-      .then -> Q({ updates: _.size(actions) })
-
-  getCustomerGroup: (client, name) ->
-    client.customerGroups.where("name=\"#{name}\"").fetch()
-    .then (result) ->
-      if _.size(result.body.results) is 1
-        Q result.body.results[0]
-      else
-        Q.reject "Can not find cutomer group '#{name}'."
-
-  getVariantByMasterSku: (variant) ->
-    @logger.debug "Processing variant #{variant.id} (sku: #{variant.sku})"
+  _getVariantByMasterSku: (variant, retailerProductId) ->
+    @logger.debug "Processing variant #{variant.id} (sku: #{variant.sku}) for retailer product #{retailerProductId}"
     variant.attributes or= []
     attribute = _.find variant.attributes, (attribute) -> attribute.name is 'mastersku'
     if attribute
@@ -115,7 +106,9 @@ class PriceSync
         .then (result) =>
           body = result.body
           if body.total isnt 1
-            Q.reject {msg: "There are #{body.total} products in master for sku '#{masterSku}'."}
+            @logger.warn "Found #{body.total} matching products in master for sku '#{masterSku}' " +
+              "(variant #{variant.id}) while processing retailer product #{retailerProductId}"
+            Q()
           else
             product = body.results[0]
             variants = [product.masterVariant].concat(product.variants)
@@ -130,11 +123,40 @@ class PriceSync
               @logger.debug data, 'Matched data'
               Q data
             else
-              Q.reject {msg: "Cannot find matching variant for sku '#{masterSku}'", obj: variants}
+              @logger.warn "Cannot find matching variant in master for sku '#{masterSku}' " +
+                "(variant #{variant.id}) while processing retailer product #{retailerProductId}"
+              Q()
       else
-        Q.reject {msg: 'No mastersku set!', obj: variant}
+        @logger.warn "No 'mastersku' set for variant #{variant.id} while processing retailer " +
+          "product #{retailerProductId}"
+        Q()
     else
-      Q.reject {msg: 'No mastersku attribute!', obj: variant}
+      @logger.warn "No 'mastersku' attribute for variant #{variant.id} while processing retailer " +
+        "product #{retailerProductId}"
+      Q()
+
+  _syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
+    prices = @_filterPrices(retailerVariant, variantDataInMaster.variant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
+    actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, variantDataInMaster.isPublished, retailerCustomerGroup.id, masterCustomerGroup.id)
+
+    if _.isEmpty(actions)
+      @logger.debug prices, "No available update actions for prices in product #{variantDataInMaster.productId}"
+      Q()
+    else
+      data =
+        version: variantDataInMaster.productVersion
+        variantId: variantDataInMaster.productId
+        actions: actions
+
+      @logger.debug data, "About to update product #{variantDataInMaster.productId} in master"
+      @masterClient.products.byId(variantDataInMaster.productId).update(data)
+      .then =>
+        @summary.synced++
+        Q()
+      .fail (error) =>
+        @summary.failed++
+        # TODO: log or accumulate error and continue with sync
+        Q.reject error
 
   _filterPrices: (retailerVariant, variantInMaster, retailerCustomerGroup, masterCustomerGroup, retailerChannel) ->
     retailerPrices = _.select retailerVariant.prices, (price) ->
@@ -164,6 +186,7 @@ class PriceSync
             # Update the price's amount
             price = _.clone masterPrice
             price.value.centAmount = retailerPrice.value.centAmount
+            @summary.toUpdate++
             data =
               action: 'changePrice'
               variantId: variantInMaster.id
@@ -179,11 +202,13 @@ class PriceSync
         if _.has price, 'customerGroup'
           price.customerGroup.id = masterCustomerGroupId
 
+        @summary.toCreate++
         data =
           action: 'addPrice'
           variantId: variantInMaster.id
           price: price
       else if priceType is CUSTOMER_GROUP_SALE and masterPrice
+        @summary.toRemove++
         data =
           action: 'removePrice'
           variantId: variantInMaster.id

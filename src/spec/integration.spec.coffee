@@ -141,10 +141,9 @@ describe '#run', ->
 
   it 'do nothing', (done) ->
     @priceSync.run()
-    .then (summary) =>
-      @logger.info summary.data, summary.message
-      expect(summary.message).toBe 'Summary: 0 unsynced prices, everything is fine'
-      expect(summary.data.length).toBe 0
+    .then (message) =>
+      @logger.info message
+      expect(message).toBe 'Summary: 0 unsynced prices, everything is fine'
       done()
     .fail (error) -> done _.prettify error
     .done()
@@ -217,14 +216,9 @@ describe '#run', ->
       .then (result) =>
         @logger.debug 'Master product updated (mastersku)'
         @priceSync.run()
-      .then (summary) =>
-        @logger.info summary.data, summary.message
-        if productState.isPublished
-          expect(summary.message).toEqual 'Summary: 5 prices were successfully synced but there were 3 problems'
-          expect(summary.data.length).toBe 3
-        else
-          expect(summary.message).toEqual 'Summary: 5 prices were successfully synced'
-          expect(summary.data.length).toBe 0
+      .then (message) =>
+        @logger.info message
+        expect(message).toBe 'Summary: there were 5 unsynced prices, (0 were updates, 4 were new and 1 were deletions) and 3 products in master were successfully synced (0 failed)'
         @client.products.byId(@masterProductId).fetch()
       .then (result) =>
         @logger.debug result, 'Master product fetched'

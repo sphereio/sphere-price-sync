@@ -63,8 +63,8 @@ credentialsConfig = ProjectCredentialsConfig.create()
 
   updater = new PriceSync logger, options
   updater.run()
-  .then (summary) =>
-    logger.info summary.data, summary.message
+  .then (message) =>
+    logger.info message
     @exitCode = 0
   .fail (error) =>
     logger.error error, 'Oops, something went wrong!'

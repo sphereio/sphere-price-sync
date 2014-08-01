@@ -31,8 +31,8 @@
   "dependencies": {
     "optimist": "0.6.1",
     "q": "1.0.1",
-    "sphere-node-client": "0.7.2",
-    "sphere-node-sync": "0.5.5",
+    "sphere-node-client": "0.7.6",
+    "sphere-node-sync": "0.5.14",
     "sphere-node-utils": "0.4.11",
     "underscore": "1.6.0"
   },

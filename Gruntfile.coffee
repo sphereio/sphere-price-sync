@@ -72,6 +72,20 @@ module.exports = (grunt) ->
       run:
         command: "node lib/run.js stock.xml"
 
+    bump:
+      options:
+        files: ['package.json']
+        updateConfigs: ['pkg']
+        commit: true
+        commitMessage: 'Bump version to %VERSION%'
+        commitFiles: ['-a']
+        createTag: true
+        tagName: 'v%VERSION%'
+        tagMessage: 'Version %VERSION%'
+        push: true
+        pushTo: 'origin'
+        gitDescribeOptions: '--tags --always --abbrev=1 --dirty=-d'
+
   # load plugins that provide the tasks defined in the config
   grunt.loadNpmTasks "grunt-coffeelint"
   grunt.loadNpmTasks "grunt-contrib-clean"

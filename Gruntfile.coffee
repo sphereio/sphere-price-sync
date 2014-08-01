@@ -79,8 +79,12 @@ module.exports = (grunt) ->
   grunt.loadNpmTasks "grunt-contrib-concat"
   grunt.loadNpmTasks "grunt-contrib-watch"
   grunt.loadNpmTasks "grunt-shell"
+  grunt.loadNpmTasks 'grunt-bump'
 
   # register tasks
   grunt.registerTask "build", ["clean", "coffeelint", "coffee", "concat"]
   grunt.registerTask "test", ["build", "shell:jasmine"]
   grunt.registerTask "coverage", ["build", "shell:coverage"]
+  grunt.registerTask 'release', 'Release a new version and push it', (target) ->
+    target = 'patch' unless target
+    grunt.task.run "bump-only:#{target}", 'test', 'bump-commit'

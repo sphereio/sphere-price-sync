@@ -1,5 +1,4 @@
 _ = require 'underscore'
-Q = require 'q'
 {ExtendedLogger} = require 'sphere-node-utils'
 package_json = require '../package.json'
 PriceSync = require '../lib/pricesync'
@@ -17,9 +16,7 @@ describe 'PriceSync', ->
         ]
 
     options =
-      baseConfig:
-        logConfig:
-          logger: @logger.bunyanLogger
+      baseConfig: {}
       master:
         project_key: 'x'
         client_id: 'y'

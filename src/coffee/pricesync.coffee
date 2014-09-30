@@ -1,7 +1,7 @@
 _ = require 'underscore'
-Q = require 'q'
-SphereClient = require 'sphere-node-client'
-{Qutils} = require 'sphere-node-utils'
+_.mixin require 'underscore-mixins'
+Promise = require 'bluebird'
+{SphereClient, TaskQueue} = require 'sphere-node-sdk'
 
 CHANNEL_ROLES = ['InventorySupply', 'OrderExport', 'OrderImport']
 CUSTOMER_GROUP_SALE = 'specialPrice'
@@ -13,13 +13,13 @@ class PriceSync
     throw new Error 'No master configuration in options!' unless options.master
     throw new Error 'No retailer configuration in options!' unless options.retailer
 
-    masterOpts = _.clone options.baseConfig
-    masterOpts.config = options.master
-    retailerOpts = _.clone options.baseConfig
-    retailerOpts.config = options.retailer
-
-    @masterClient = new SphereClient masterOpts
-    @retailerClient = new SphereClient retailerOpts
+    globalTaskQueue = new TaskQueue
+    @masterClient = new SphereClient _.extend {}, _.deepClone(options.baseConfig),
+      config: options.master
+      task: globalTaskQueue
+    @retailerClient = new SphereClient _.extend {}, _.deepClone(options.baseConfig),
+      config: options.retailer
+      task: globalTaskQueue
 
     @retailerProjectKey = options.retailer.project_key
     @fetchHours = options.baseConfig.fetchHours or 24
@@ -36,7 +36,7 @@ class PriceSync
   run: ->
     @_resetSummary()
 
-    Q.all([
+    Promise.all([
       @masterClient.channels.ensure(@retailerProjectKey, CHANNEL_ROLES)
       @masterClient.customerGroups.where("name = \"#{CUSTOMER_GROUP_SALE}\"").fetch()
       @retailerClient.customerGroups.where("name = \"#{CUSTOMER_GROUP_SALE}\"").fetch()
@@ -55,23 +55,18 @@ class PriceSync
       .process (payload) =>
         retailerProductsBatch = payload.body.results
 
-        Qutils.processList retailerProductsBatch, (retailerProducts) =>
-          throw new Error 'Products should be processed once at a time' if retailerProducts.length isnt 1
-          retailerProduct = retailerProducts[0]
-
-          @logger.debug retailerProduct, 'Processing retailer product'
-
+        Promise.map retailerProductsBatch, (retailerProduct) =>
+          @logger?.debug retailerProduct, 'Processing retailer product'
           current = retailerProduct.masterData.current
           current.variants or= []
           variants = [current.masterVariant].concat(current.variants)
 
-          Qutils.processList variants, (retailerVariants) =>
-            throw new Error 'Variants should be processed once at a time' if retailerVariants.length isnt 1
-            retailerVariant = retailerVariants[0]
-
+          Promise.map variants, (retailerVariant) =>
             @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster, retailerProduct.id
-          , {accumulate: false}
-        , {accumulate: false}
+          , {concurrency: 1}
+          .then -> Promise.resolve() # continue with next batch
+        , {concurrency: 1}
+        .then -> Promise.resolve() # continue with next batch
       , {accumulate: false}
 
     .then =>
@@ -82,7 +77,7 @@ class PriceSync
           "unsynced prices, (#{@summary.toUpdate} were updates, #{@summary.toCreate} were new and " +
           "#{@summary.toRemove} were deletions) and #{@summary.synced} products in master " +
           "were successfully synced (#{@summary.failed} failed)"
-      Q message
+      Promise.resolve message
 
   _processVariant: (retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster, retailerProductId) ->
     @_getVariantByMasterSku(retailerVariant, retailerProductId)
@@ -90,10 +85,10 @@ class PriceSync
       if variantDataInMaster
         @_syncVariantPrices(variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
       else # not able to match prices with master, skipping...
-        Q()
+        Promise.resolve()
 
   _getVariantByMasterSku: (variant, retailerProductId) ->
-    @logger.debug "Processing variant #{variant.id} (sku: #{variant.sku}) for retailer product #{retailerProductId}"
+    @logger?.debug "Processing variant #{variant.id} (sku: #{variant.sku}) for retailer product #{retailerProductId}"
     variant.attributes or= []
     attribute = _.find variant.attributes, (attribute) -> attribute.name is 'mastersku'
     if attribute
@@ -106,9 +101,9 @@ class PriceSync
         .then (result) =>
           body = result.body
           if body.total isnt 1
-            @logger.warn "Found #{body.total} matching products in master for sku '#{masterSku}' " +
+            @logger?.warn "Found #{body.total} matching products in master for sku '#{masterSku}' " +
               "(variant #{variant.id}) while processing retailer product #{retailerProductId}"
-            Q()
+            Promise.resolve()
           else
             product = body.results[0]
             variants = [product.masterVariant].concat(product.variants)
@@ -116,47 +111,46 @@ class PriceSync
               v.sku is masterSku
             if match?
               data =
-                productId: product.id
                 productVersion: product.version
+                productId: product.id
                 isPublished: product.published is true
                 variant: match
-              @logger.debug data, 'Matched data'
-              Q data
+              @logger?.debug data, 'Matched data'
+              Promise.resolve data
             else
-              @logger.warn "Cannot find matching variant in master for sku '#{masterSku}' " +
+              @logger?.warn "Cannot find matching variant in master for sku '#{masterSku}' " +
                 "(variant #{variant.id}) while processing retailer product #{retailerProductId}"
-              Q()
+              Promise.resolve()
       else
-        @logger.warn "No 'mastersku' set for variant #{variant.id} while processing retailer " +
+        @logger?.warn "No 'mastersku' set for variant #{variant.id} while processing retailer " +
           "product #{retailerProductId}"
-        Q()
+        Promise.resolve()
     else
-      @logger.warn "No 'mastersku' attribute for variant #{variant.id} while processing retailer " +
+      @logger?.warn "No 'mastersku' attribute for variant #{variant.id} while processing retailer " +
         "product #{retailerProductId}"
-      Q()
+      Promise.resolve()
 
   _syncVariantPrices: (variantDataInMaster, retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster) ->
     prices = @_filterPrices(retailerVariant, variantDataInMaster.variant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster)
     actions = @_updatePrices(prices.retailerPrices, prices.masterPrices, retailerChannelInMaster.id, variantDataInMaster.variant, variantDataInMaster.isPublished, retailerCustomerGroup.id, masterCustomerGroup.id)
 
     if _.isEmpty(actions)
-      @logger.debug prices, "No available update actions for prices in product #{variantDataInMaster.productId}"
-      Q()
+      @logger?.debug prices, "No available update actions for prices in product #{variantDataInMaster.productId}"
+      Promise.resolve()
     else
       data =
         version: variantDataInMaster.productVersion
         variantId: variantDataInMaster.productId
         actions: actions
-
-      @logger.debug data, "About to update product #{variantDataInMaster.productId} in master"
+      @logger?.debug data, "About to update product #{variantDataInMaster.productId} in master"
       @masterClient.products.byId(variantDataInMaster.productId).update(data)
       .then =>
         @summary.synced++
-        Q()
-      .fail (error) =>
+        Promise.resolve()
+      .catch (error) =>
         @summary.failed++
         # TODO: log or accumulate error and continue with sync
-        Q.reject error
+        Promise.reject error
 
   _filterPrices: (retailerVariant, variantInMaster, retailerCustomerGroup, masterCustomerGroup, retailerChannel) ->
     retailerPrices = _.select retailerVariant.prices, (price) ->
@@ -180,7 +174,7 @@ class PriceSync
     syncAmountOrCreate = (retailerPrice, masterPrice, priceType = 'normal') =>
       if masterPrice? and retailerPrice?
         if masterPrice.value.currencyCode isnt retailerPrice.value.currencyCode
-          @logger.error "SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
+          @logger?.error "SKU #{variantInMaster.sku}: There are #{priceType} prices with different currencyCodes. R: #{retailerPrice.value.currencyCode} -> M: #{masterPrice.value.currencyCode}"
         else
           if masterPrice.value.centAmount isnt retailerPrice.value.centAmount
             # Update the price's amount
@@ -214,7 +208,7 @@ class PriceSync
           variantId: variantInMaster.id
           price: masterPrice
       else if priceType isnt CUSTOMER_GROUP_SALE
-        @logger.warn "SKU #{variantInMaster.sku}: There are NO normal prices at all."
+        @logger?.warn "SKU #{variantInMaster.sku}: There are NO normal prices at all."
 
     action = syncAmountOrCreate(@_normalPrice(retailerPrices), @_normalPrice(masterPrices))
     if action?

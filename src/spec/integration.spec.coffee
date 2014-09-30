@@ -1,6 +1,7 @@
-Q = require 'q'
 _ = require 'underscore'
-_.mixin require('sphere-node-utils')._u
+_.mixin require 'underscore-mixins'
+Promise = require 'bluebird'
+{SphereClient} = require 'sphere-node-sdk'
 {ExtendedLogger} = require 'sphere-node-utils'
 package_json = require '../package.json'
 Config = require '../config'
@@ -18,7 +19,7 @@ updateUnpublish = (version) ->
 cleanup = (client, logger) ->
   logger.debug 'Unpublishing all products'
   client.products.sort('id').where('masterData(published = "true")').process (payload) ->
-    Q.all _.map payload.body.results, (product) ->
+    Promise.all _.map payload.body.results, (product) ->
       client.products.byId(product.id).update(updateUnpublish(product.version))
   .then (results) ->
     logger.debug "Unpublished #{results.length} products"
@@ -26,7 +27,7 @@ cleanup = (client, logger) ->
     client.products.perPage(0).fetch()
   .then (payload) ->
     logger.debug "Deleting #{payload.body.total} products"
-    Q.all _.map payload.body.results, (product) ->
+    Promise.all _.map payload.body.results, (product) ->
       client.products.byId(product.id).delete(product.version)
   .then (results) ->
     logger.debug "Deleted #{results.length} products"
@@ -34,11 +35,11 @@ cleanup = (client, logger) ->
     client.productTypes.perPage(0).fetch()
   .then (payload) ->
     logger.debug "Deleting #{payload.body.total} product types"
-    Q.all _.map payload.body.results, (productType) ->
+    Promise.all _.map payload.body.results, (productType) ->
       client.productTypes.byId(productType.id).delete(productType.version)
   .then (results) ->
     logger.debug "Deleted #{results.length} product types"
-    Q()
+    Promise.resolve()
 
 describe '#run', ->
   beforeEach (done) ->
@@ -53,9 +54,7 @@ describe '#run', ->
         ]
 
     options =
-      baseConfig:
-        logConfig:
-          logger: @logger.bunyanLogger
+      baseConfig: {}
       master:
         project_key: Config.config.project_key
         client_id: Config.config.client_id
@@ -66,7 +65,7 @@ describe '#run', ->
         client_secret: Config.config.client_secret
 
     @priceSync = new PriceSync @logger, options
-    @client = @priceSync.masterClient
+    @client = new SphereClient config: options.master
 
     @logger.info 'About to setup...'
     cleanup(@client, @logger)
@@ -74,7 +73,7 @@ describe '#run', ->
       @client.customerGroups.where('name = \"specialPrice\"').fetch()
       .then (result) =>
         if _.size(result.body.results) is 1
-          Q body: result.body.results[0]
+          Promise.resolve body: result.body.results[0]
         else
           @logger.info "No customerGroup 'specialPrice' found. Creating a new one"
           @client.customerGroups.save(groupName: 'specialPrice')
@@ -126,9 +125,8 @@ describe '#run', ->
     .then (result) =>
       @logger.debug result, 'Product created'
       @masterProductId = result.body.id
-      @masterProductVersion = result.body.version
       done()
-    .fail (error) -> done _.prettify error
+    .catch (error) -> done _.prettify error
     .done()
   , 20000 # 20sec
 
@@ -136,7 +134,7 @@ describe '#run', ->
     @logger.info 'About to cleanup...'
     cleanup(@client, @logger)
     .then -> done()
-    .fail (error) -> done(_.prettify(error))
+    .catch (error) -> done(_.prettify(error))
   , 30000 # 30sec
 
   it 'do nothing', (done) ->
@@ -145,7 +143,7 @@ describe '#run', ->
       @logger.info message
       expect(message).toBe 'Summary: 0 unsynced prices, everything is fine'
       done()
-    .fail (error) -> done _.prettify error
+    .catch (error) -> done _.prettify error
     .done()
 
 
@@ -193,21 +191,26 @@ describe '#run', ->
       @logger.debug fakeRetailerProduct, 'About to create a product'
       @client.products.save(fakeRetailerProduct)
       .then (result) =>
-        @logger.debug 'New retailer product created'
+        @logger.debug result, 'New retailer product created'
+        # fetch the product again to get the correct version
+        @client.products.byId(result.body.id).fetch()
+      .then (result) =>
+        @logger.debug result, 'Fetched product'
         data =
           actions: [
             { action: 'publish' }
           ]
           version: result.body.version
-
         @client.products.byId(result.body.id).update(data)
       .then (result) =>
-        @logger.debug 'Retailer product published'
+        @logger.debug result, 'Retailer product published, fetching latest version of master product'
+        @client.products.byId(@masterProductId).fetch()
+      .then (result) =>
         data =
           actions: [
             { action: 'setAttribute', staged: (not productState.isPublished), variantId: 1, name: 'mastersku', value: "We want to be sure it works also for 'hasStagedChanges'." }
           ]
-          version: @masterProductVersion
+          version: result.body.version
         if productState.isPublished
           @logger.info 'Publishing product'
           data.actions.push action: 'publish'
@@ -341,6 +344,6 @@ describe '#run', ->
 
         done()
 
-      .fail (error) -> done _.prettify error
+      .catch (error) -> done _.prettify error
       .done()
     , 30000 # 30sec

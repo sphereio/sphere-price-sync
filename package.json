@@ -8,6 +8,12 @@
     "name": "Hajo Eichler",
     "email": "hajo.eichler@commercetools.de"
   },
+  "maintainers": [
+    {
+      "name": "Nicola Molinari",
+      "email": "nicola.molinari@commercetools.de"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/sphereio/sphere-price-sync.git"
@@ -23,18 +29,18 @@
   ],
   "main": "main.js",
   "engines": {
-    "node": ">= 0.8.0"
+    "node": ">= 0.10.0"
   },
   "scripts": {
     "test": "grunt coverage"
   },
   "dependencies": {
     "optimist": "0.6.1",
-    "q": "1.0.1",
-    "sphere-node-client": "0.7.6",
-    "sphere-node-sync": "0.5.14",
-    "sphere-node-utils": "0.4.11",
-    "underscore": "1.6.0"
+    "bluebird": "2.3.x",
+    "sphere-node-sdk": "1.0.0-rc1",
+    "sphere-node-utils": "0.4.13",
+    "underscore": "1.7.0",
+    "underscore-mixins": "*"
   },
   "devDependencies": {
     "coveralls": "2.10.0",

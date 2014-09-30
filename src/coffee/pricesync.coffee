@@ -47,19 +47,17 @@ class PriceSync
       throw new Error "Cannot find customer group '#{CUSTOMER_GROUP_SALE}' in master" unless masterCustomerGroup
       throw new Error "Cannot find customer group '#{CUSTOMER_GROUP_SALE}' in retailer" unless retailerCustomerGroup
 
-      @retailerClient.products
+      @retailerClient.productProjections
       .sort('id')
       .last("#{@fetchHours}h")
-      .where("masterData(published=\"true\")")
+      .where("published=\"true\"") # TODO: is staged=false enough?
       .perPage(100)
       .process (payload) =>
         retailerProductsBatch = payload.body.results
 
         Promise.map retailerProductsBatch, (retailerProduct) =>
           @logger?.debug retailerProduct, 'Processing retailer product'
-          current = retailerProduct.masterData.current
-          current.variants or= []
-          variants = [current.masterVariant].concat(current.variants)
+          variants = [retailerProduct.masterVariant].concat(retailerProduct.variants or [])
 
           Promise.map variants, (retailerVariant) =>
             @_processVariant retailerVariant, retailerCustomerGroup, masterCustomerGroup, retailerChannelInMaster, retailerProduct.id

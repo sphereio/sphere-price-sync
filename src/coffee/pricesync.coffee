@@ -109,7 +109,6 @@ class PriceSync
               v.sku is masterSku
             if match?
               data =
-                productVersion: product.version
                 productId: product.id
                 isPublished: product.published is true
                 variant: match
@@ -136,12 +135,14 @@ class PriceSync
       @logger?.debug prices, "No available update actions for prices in product #{variantDataInMaster.productId}"
       Promise.resolve()
     else
-      data =
-        version: variantDataInMaster.productVersion
-        variantId: variantDataInMaster.productId
-        actions: actions
-      @logger?.debug data, "About to update product #{variantDataInMaster.productId} in master"
-      @masterClient.products.byId(variantDataInMaster.productId).update(data)
+      @masterClient.productProjections.staged(true).byId(variantDataInMaster.productId).fetch()
+      .then (result) =>
+        data =
+          version: result.body.version
+          variantId: variantDataInMaster.productId
+          actions: actions
+        @logger?.debug data, "About to update product #{variantDataInMaster.productId} in master"
+        @masterClient.products.byId(variantDataInMaster.productId).update(data)
       .then =>
         @summary.synced++
         Promise.resolve()

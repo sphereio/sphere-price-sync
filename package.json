@@ -38,7 +38,7 @@
     "optimist": "0.6.1",
     "bluebird": "2.3.x",
     "sphere-node-sdk": "1.0.0-rc1",
-    "sphere-node-utils": "0.4.13",
+    "sphere-node-utils": "0.5.0",
     "underscore": "1.7.0",
     "underscore-mixins": "*"
   },

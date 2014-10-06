@@ -193,7 +193,7 @@ describe '#run', ->
       .then (result) =>
         @logger.debug result, 'New retailer product created'
         # fetch the product again to get the correct version
-        @client.products.byId(result.body.id).fetch()
+        @client.productProjections.staged(true).byId(result.body.id).fetch()
       .then (result) =>
         @logger.debug result, 'Fetched product'
         data =
@@ -204,7 +204,7 @@ describe '#run', ->
         @client.products.byId(result.body.id).update(data)
       .then (result) =>
         @logger.debug result, 'Retailer product published, fetching latest version of master product'
-        @client.products.byId(@masterProductId).fetch()
+        @client.productProjections.staged(true).byId(@masterProductId).fetch()
       .then (result) =>
         data =
           actions: [
